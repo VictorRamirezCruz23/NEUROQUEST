@@ -6,7 +6,7 @@
 | :--- | :--- | :--- |
 | **0** | Auditoría y planificación del repositorio | ✅ Completado |
 | **1** | Fundación Vite y Phaser 3 con estructura modular | ✅ Completado |
-| **2** | Personaje, físicas y mundo interactivo pixel art | ⏳ Pendiente de autorización |
+| **2** | Personaje, físicas y mundo interactivo pixel art | ✅ Completado |
 | **3** | Pantalla y flujo de Selección de Competencias | ⏳ Pendiente de autorización |
 | **4** | Motor educativo modular (`EducationEngine`) y Ruta 01 | ⏳ Pendiente de autorización |
 | **5** | Diagnóstico inicial y algoritmo de dificultad adaptativa | ⏳ Pendiente de autorización |

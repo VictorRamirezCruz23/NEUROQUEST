@@ -8,12 +8,12 @@ Este documento registra el inventario oficial de recursos visuales, tilesets, sp
 
 | ID Recurso | Tipo | Ruta / Origen | Dimensiones | Animaciones / Frames | Estado de Aprobación |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `hero_idle` | Sprite | Procedural (`PreloadScene.js`) | 32x32 px | Frame único / Tween oscilante | ✅ Aprobado como Placeholder Base |
+| `player_concept` | Hoja Conceptual Original | `src/game/entities/player.jpg` | 2528x1696 px | Concepto con turnarounds, walk, jump, combat | ✅ Aprobado y Suministrado por Usuario |
+| `player` | Spritesheet Transparente | `public/assets/sprites/player_sheet.png` | 1200x1320 px (Frames: 200x330) | `player_idle`, `player_walk`, `player_jump`, `player_jump_peak`, `player_fall`, `player_land`, `player_punch` | ✅ Aprobado y Procesado (Fondo transparente, libre de artefactos de texto) |
 | `btn_primary` | UI | Procedural (`PreloadScene.js`) | 200x48 px | Interactivo (Hover / Active) | ✅ Aprobado como Botón Base |
-| `retro_starfield` | Fondo | Procedural (`WelcomeScene.js`) | 960x540 px | Generación procedural estática | ✅ Aprobado para Pantalla Inicial |
-| `player_spritesheet` | Spritesheet | `public/assets/sprites/player.png` | 32x32 px (Frames) | `idle`, `walk`, `jump`, `fall` | ⏳ Planificado para Incremento 2 |
-| `tileset_neurocore` | Tileset | `public/assets/tilesets/neurocore_base.png`| 32x32 px (Grid) | Muros, plataformas, rampas | ⏳ Planificado para Incremento 2 |
-| `terminal_logic` | Sprite / Objeto | `public/assets/sprites/terminal_logic.png` | 32x48 px | `idle`, `active_pulse` | ⏳ Planificado para Incremento 4 |
+| `tile_ground` | Baldosa Terreno | Procedural (`PreloadScene.js`) | 32x32 px | Suelo firme con luz cian superior | ✅ Aprobado para Plataformas |
+| `tile_platform` | Baldosa Flotante | Procedural (`PreloadScene.js`) | 32x32 px | Plataformas elevadas metálicas | ✅ Aprobado para Plataformas |
+| `terminal_device` | Objeto Interactivo | Procedural (`PreloadScene.js`) | 48x64 px | Consola con holograma pulsante | ✅ Aprobado para Puntos de Interacción |
 | `icon_competencies` | Atlas UI | `public/assets/ui/competency_badges.png` | 64x64 px | 4 iconos de rutas | ⏳ Planificado para Incremento 3 |
 
 ---
