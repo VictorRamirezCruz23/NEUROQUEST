@@ -1,0 +1,18 @@
+{
+  "name": "neuroquest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plataforma de aventura educativa adaptativa 2D en pixel art",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "^3.88.2"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}

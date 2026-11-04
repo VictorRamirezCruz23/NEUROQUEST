@@ -1,0 +1,31 @@
+import Phaser from 'phaser';
+import { BootScene } from '../game/scenes/BootScene.js';
+import { PreloadScene } from '../game/scenes/PreloadScene.js';
+import { WelcomeScene } from '../game/scenes/WelcomeScene.js';
+
+export const GAME_WIDTH = 960;
+export const GAME_HEIGHT = 540;
+
+export const gameConfig = {
+  type: Phaser.AUTO,
+  parent: 'game-container',
+  width: GAME_WIDTH,
+  height: GAME_HEIGHT,
+  pixelArt: true,
+  roundPixels: true,
+  backgroundColor: '#0a0c16',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT
+  },
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { y: 0 },
+      debug: false
+    }
+  },
+  scene: [BootScene, PreloadScene, WelcomeScene]
+};
