@@ -17,6 +17,7 @@ NEUROQUEST es un videojuego educativo diseñado para estudiantes de secundaria, 
 - **Arquitectura Segura:** Integración de Google Gemini API a través de Cloud Functions con control estricto de secretos y cuotas.
 
 ---
+aaa
 
 ## Competencias y Mundos
 
