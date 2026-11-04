@@ -1,6 +1,6 @@
 # NEUROQUEST
 Importante leer para contextualizar el proyecto
-
+Revisar documentacion 
 > **Plataforma de Aventura Educativa Adaptativa 2D en Pixel Art**
 
 NEUROQUEST es un videojuego educativo diseñado para estudiantes de secundaria, enfocado en el desarrollo autónomo y comprobable de competencias fundamentales mediante cuatro rutas de aprendizaje independientes.
