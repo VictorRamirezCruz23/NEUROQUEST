@@ -3,13 +3,15 @@ import { firestoreService } from '../../services/firebase/firestoreService.js';
 
 /**
  * AuthModalController.js — Controlador del diálogo de autenticación y perfil de cadete.
- * Conecta el formulario HTML estilizado con el servicio modular de Firebase Auth.
+ * Conecta el formulario HTML estilizado con el servicio modular de Firebase Auth y Google Sign-in.
  */
 class AuthModalController {
   constructor() {
     this.modal = null;
-    this.mode = 'login'; // 'login' | 'register'
+    this.mode = 'register'; // Iniciar por defecto en Registro para nuevos usuarios
     this.initialized = false;
+    this.mandatory = false;
+    this.onSuccessCallback = null;
   }
 
   init() {
@@ -30,6 +32,7 @@ class AuthModalController {
     this.successEl = document.getElementById('auth-success-msg');
     this.submitBtn = document.getElementById('auth-btn-submit');
     this.switchBtn = document.getElementById('auth-btn-switch');
+    this.googleBtn = document.getElementById('auth-btn-google');
     this.anonBtn = document.getElementById('auth-btn-anon');
     this.logoutBtn = document.getElementById('auth-btn-logout');
     this.closeBtn = document.getElementById('auth-modal-close');
@@ -44,13 +47,39 @@ class AuthModalController {
   }
 
   setupListeners() {
-    this.closeBtn?.addEventListener('click', () => this.close());
+    this.closeBtn?.addEventListener('click', () => {
+      if (!this.mandatory || authService.isPermanentUser()) {
+        this.close();
+      } else {
+        this.showError('Debes registrar una cuenta o iniciar sesión para comenzar.');
+      }
+    });
+
     this.modal?.addEventListener('click', (e) => {
-      if (e.target === this.modal) this.close();
+      if (e.target === this.modal && (!this.mandatory || authService.isPermanentUser())) {
+        this.close();
+      }
     });
 
     this.switchBtn?.addEventListener('click', () => {
       this.toggleMode();
+    });
+
+    // Inicio de Sesión con Google
+    this.googleBtn?.addEventListener('click', async () => {
+      this.clearMessages();
+      this.googleBtn.disabled = true;
+      const res = await authService.loginWithGoogle();
+      this.googleBtn.disabled = false;
+      if (res.success) {
+        this.showSuccess('¡Identificación con Google confirmada!');
+        if (typeof this.onSuccessCallback === 'function') {
+          this.onSuccessCallback(res.user);
+        }
+        setTimeout(() => this.close(), 1000);
+      } else {
+        this.showError(this.translateAuthError(res.error));
+      }
     });
 
     this.anonBtn?.addEventListener('click', async () => {
@@ -60,7 +89,10 @@ class AuthModalController {
       this.submitBtn.disabled = false;
       if (res.success) {
         this.showSuccess('Iniciando sesión como Cadete Invitado...');
-        setTimeout(() => this.close(), 1200);
+        if (typeof this.onSuccessCallback === 'function') {
+          this.onSuccessCallback(res.user);
+        }
+        setTimeout(() => this.close(), 1000);
       } else {
         this.showError(res.error);
       }
@@ -69,7 +101,7 @@ class AuthModalController {
     this.logoutBtn?.addEventListener('click', async () => {
       this.clearMessages();
       await authService.logout();
-      this.showSuccess('Sesión cerrada. Jugando en modo offline.');
+      this.showSuccess('Sesión cerrada. Estado local reiniciado.');
     });
 
     this.form?.addEventListener('submit', async (e) => {
@@ -91,7 +123,10 @@ class AuthModalController {
         this.submitBtn.disabled = false;
         if (res.success) {
           this.showSuccess('¡Bienvenido de vuelta, Cadete!');
-          setTimeout(() => this.close(), 1200);
+          if (typeof this.onSuccessCallback === 'function') {
+            this.onSuccessCallback(res.user);
+          }
+          setTimeout(() => this.close(), 1000);
         } else {
           this.showError(this.translateAuthError(res.error));
         }
@@ -101,7 +136,10 @@ class AuthModalController {
         this.submitBtn.disabled = false;
         if (res.success) {
           this.showSuccess('¡Cuenta de cadete creada con éxito!');
-          setTimeout(() => this.close(), 1200);
+          if (typeof this.onSuccessCallback === 'function') {
+            this.onSuccessCallback(res.user);
+          }
+          setTimeout(() => this.close(), 1000);
         } else {
           this.showError(this.translateAuthError(res.error));
         }
@@ -111,24 +149,23 @@ class AuthModalController {
 
   updateStatusView(user) {
     if (!this.statusEl) return;
-    if (user) {
-      if (user.isAnonymous) {
-        this.statusEl.textContent = '🟢 Conectado como Cadete Invitado';
-        this.statusEl.style.color = '#38bdf8';
-        this.uidEl.textContent = user.uid;
-        if (this.logoutBtn) this.logoutBtn.style.display = 'none';
-        if (this.anonBtn) this.anonBtn.style.display = 'none';
-      } else {
-        this.statusEl.textContent = `🟢 Conectado: ${user.displayName || user.email}`;
-        this.statusEl.style.color = '#34d399';
-        this.uidEl.textContent = user.uid;
-        if (this.logoutBtn) this.logoutBtn.style.display = 'block';
-        if (this.anonBtn) this.anonBtn.style.display = 'none';
-      }
+    if (user && !user.isAnonymous) {
+      this.statusEl.textContent = `🟢 Conectado: ${user.displayName || user.email}`;
+      this.statusEl.style.color = '#34d399';
+      this.uidEl.textContent = user.uid;
+      if (this.logoutBtn) this.logoutBtn.style.display = 'block';
+      if (this.anonBtn) this.anonBtn.style.display = 'none';
+    } else if (authService.isUserLoggedInLocally()) {
+      const name = authService.getDisplayName();
+      this.statusEl.textContent = `🟢 Sesión guardada: ${name}`;
+      this.statusEl.style.color = '#38bdf8';
+      this.uidEl.textContent = authService.getUid();
+      if (this.logoutBtn) this.logoutBtn.style.display = 'block';
+      if (this.anonBtn) this.anonBtn.style.display = 'none';
     } else {
-      this.statusEl.textContent = '⚪ Sin sesión activa (Modo Local)';
-      this.statusEl.style.color = '#94a3b8';
-      this.uidEl.textContent = 'offline_guest';
+      this.statusEl.textContent = '⚪ Sin cuenta activa (Crea tu cuenta)';
+      this.statusEl.style.color = '#fbbf24';
+      this.uidEl.textContent = 'No registrado';
       if (this.logoutBtn) this.logoutBtn.style.display = 'none';
       if (this.anonBtn) this.anonBtn.style.display = 'block';
     }
@@ -138,18 +175,18 @@ class AuthModalController {
     this.clearMessages();
     if (this.mode === 'login') {
       this.mode = 'register';
-      this.titleEl.textContent = 'NUEVO REGISTRO DE CADETE';
-      this.subtitleEl.textContent = 'Crea una cuenta para guardar tu progreso';
+      this.titleEl.textContent = 'REGISTRO DE NUEVO CADETE';
+      this.subtitleEl.textContent = 'Crea tu cuenta para guardar tu progreso de aprendizaje';
       this.nameField.style.display = 'block';
       this.submitBtn.textContent = 'CREAR CUENTA';
       this.switchBtn.textContent = '¿Ya tienes cuenta? Inicia Sesión';
     } else {
       this.mode = 'login';
       this.titleEl.textContent = 'IDENTIFICACIÓN DE CADETE';
-      this.subtitleEl.textContent = 'Sincronización en la nube con Firebase';
+      this.subtitleEl.textContent = 'Ingresa con tus credenciales escolares';
       this.nameField.style.display = 'none';
       this.submitBtn.textContent = 'INICIAR SESIÓN';
-      this.switchBtn.textContent = '¿No tienes cuenta? Regístrate';
+      this.switchBtn.textContent = '¿No tienes cuenta? Crea una cuenta';
     }
   }
 
@@ -174,11 +211,14 @@ class AuthModalController {
 
   translateAuthError(err) {
     if (!err) return 'Error desconocido.';
+    if (err.includes('popup-closed-by-user')) {
+      return 'Ventana de Google cerrada antes de completar el acceso.';
+    }
     if (err.includes('user-not-found') || err.includes('wrong-password') || err.includes('invalid-credential')) {
       return 'Correo o contraseña incorrectos.';
     }
     if (err.includes('email-already-in-use')) {
-      return 'Este correo ya tiene una cuenta registrada.';
+      return 'Este correo ya tiene una cuenta registrada. Selecciona "Iniciar Sesión".';
     }
     if (err.includes('weak-password')) {
       return 'La contraseña debe tener al menos 6 caracteres.';
@@ -189,11 +229,28 @@ class AuthModalController {
     return `Aviso de Firebase: ${err}`;
   }
 
-  open() {
+  open(options = {}) {
     this.init();
+    this.mandatory = !!options.mandatory;
+    this.onSuccessCallback = options.onAuthSuccess || null;
+
     if (this.modal) {
       this.clearMessages();
       this.updateStatusView(authService.getUser());
+
+      // Si es obligatorio y no ha iniciado sesión, forzar modo registro
+      if (this.mandatory && !authService.isPermanentUser() && !authService.isUserLoggedInLocally()) {
+        this.mode = 'register';
+        this.titleEl.textContent = 'REGISTRO DE NUEVO CADETE';
+        this.subtitleEl.textContent = 'Crea tu cuenta escolar para comenzar tu aventura';
+        this.nameField.style.display = 'block';
+        this.submitBtn.textContent = 'CREAR CUENTA';
+        this.switchBtn.textContent = '¿Ya tienes cuenta? Inicia Sesión';
+        if (this.closeBtn) this.closeBtn.style.display = 'none';
+      } else {
+        if (this.closeBtn) this.closeBtn.style.display = 'block';
+      }
+
       this.modal.style.display = 'flex';
     }
   }

@@ -193,14 +193,12 @@ class SessionStateManager {
   }
 
   /**
-   * Inicializa la sesión con inicio anónimo si no hay sesión previa.
+   * Inicializa la escucha de sesión y sincronización con Firestore.
    */
   async initSession() {
     authService.onAuthStateChange(async (user) => {
-      if (user) {
+      if (user && !user.isAnonymous) {
         await this.syncWithFirestore(user);
-      } else {
-        await authService.loginAnonymously();
       }
     });
   }

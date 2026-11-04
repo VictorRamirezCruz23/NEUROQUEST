@@ -105,19 +105,44 @@ export class WelcomeScene extends Phaser.Scene {
 
     btnBg.on('pointerdown', () => {
       btnContainer.setScale(0.96);
-      this.cameras.main.fadeOut(350, 10, 12, 22);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('SelectCompetencyScene');
-      });
-      console.log('[WelcomeScene] Iniciar aventura presionado. Transicionando a SelectCompetencyScene.');
+      if (!authService.isUserLoggedInLocally() && !authService.isPermanentUser()) {
+        authModalController.open({
+          mandatory: true,
+          onAuthSuccess: () => this.startAdventure()
+        });
+      } else {
+        this.startAdventure();
+      }
     });
 
     // Pie de página de estado del sistema
-    this.add.text(width / 2, height - 25, 'v0.3.0 • Incremento 3: Selector de Competencias Activo', {
+    this.add.text(width / 2, height - 25, 'v0.7.0 • Firebase Cloud Sync & Autenticación Activa', {
       fontFamily: 'monospace',
       fontSize: '12px',
       color: '#64748b'
     }).setOrigin(0.5);
+
+    // Solicitar siempre creación de cuenta o inicio de sesión si no hay sesión previa
+    this.time.delayedCall(450, () => {
+      if (!authService.isUserLoggedInLocally() && !authService.isPermanentUser()) {
+        authModalController.open({
+          mandatory: true,
+          onAuthSuccess: () => {
+            profileBtn.setText(`👤 ${authService.getDisplayName()}`);
+          }
+        });
+      }
+    });
+  }
+
+  startAdventure() {
+    if (this.isStarting) return;
+    this.isStarting = true;
+    console.log('[WelcomeScene] Iniciar aventura presionado. Transicionando a SelectCompetencyScene.');
+    this.cameras.main.fadeOut(300, 10, 12, 22);
+    this.time.delayedCall(320, () => {
+      this.scene.start('SelectCompetencyScene');
+    });
   }
 
   createRetroBackground(width, height) {
