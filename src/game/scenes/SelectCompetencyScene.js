@@ -73,6 +73,21 @@ export class SelectCompetencyScene extends Phaser.Scene {
       fontSize: '13px',
       color: '#94a3b8'
     }).setOrigin(0.5);
+
+    // Botón directo a Telemetría / Dashboard de Aprendizaje [B]
+    const dashBtn = this.add.text(width - 24, 24, '📊 Métricas [B]', {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      padding: { x: 10, y: 6 }
+    })
+    .setOrigin(1, 0)
+    .setInteractive({ useHandCursor: true });
+
+    dashBtn.on('pointerover', () => dashBtn.setColor('#ffffff'));
+    dashBtn.on('pointerout', () => dashBtn.setColor('#38bdf8'));
+    dashBtn.on('pointerdown', () => this.openDashboard());
   }
 
   createCompetencyCards(width, height) {
@@ -288,6 +303,20 @@ export class SelectCompetencyScene extends Phaser.Scene {
 
     this.input.keyboard.on('keydown-ENTER', () => startRoute(this.selectedCompetencyId));
     this.input.keyboard.on('keydown-SPACE', () => startRoute(this.selectedCompetencyId));
+    this.input.keyboard.on('keydown-B', () => this.openDashboard());
+  }
+
+  openDashboard() {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+    console.log('[SelectCompetencyScene] Abriendo DashboardScene...');
+    this.cameras.main.fadeOut(200, 10, 12, 22);
+    this.time.delayedCall(220, () => {
+      this.scene.start('DashboardScene', {
+        fromScene: 'SelectCompetencyScene',
+        competencyId: this.selectedCompetencyId
+      });
+    });
   }
 
   enterSelectedWorld(competencyId = null) {

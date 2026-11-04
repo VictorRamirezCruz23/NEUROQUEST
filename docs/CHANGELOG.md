@@ -6,6 +6,33 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.9.0] - 2026-11-04
+
+### Añadido
+- **Incremento 9 (Dashboard de Aprendizaje y Métricas Reales No Infladas):**
+  - Implementación del motor analítico [`LearningAnalytics.js`](src/analytics/LearningAnalytics.js):
+    - Medición determinista de 6 dimensiones fundamentales del aprendizaje real sin gamificación vacía ni puntos inflados:
+      - **Participación Real:** Desafíos completados vs total de la competencia, diagnósticos y tiempo invertido.
+      - **Rendimiento Genuino:** Precisión de primer intento (% de respuestas correctas a la primera) y tasa de éxito global.
+      - **Autonomía:** Índice de resolución independiente sin depender de pistas de socorro ni reintentos asistidos.
+      - **Nivel de Dominio:** Nivel cognitivo alcanzado en la escala Bloom-adaptativa (Nivel 1 al 4) y consistencia.
+      - **Transferencia Cognitiva:** Tasa de éxito al aplicar conceptos en contextos novedosos y desafiantes.
+      - **Retención Temporal:** Estabilidad conceptual a lo largo del tiempo evaluada en intervalos de enfriamiento.
+    - Síntesis global multidimensional y generación de recomendaciones pedagógicas personalizadas por competencia.
+  - Implementación de la escena interactiva [`DashboardScene.js`](src/game/scenes/DashboardScene.js):
+    - Visualización Cyber-HUD en resolución nativa 960x540 en formato 16:9.
+    - Presupuesto espacial estricto para evitar solapamientos visuales (`cuida que los estilos no se encimen`):
+      - Cabecera con datos de identidad del cadete y selector de navegación.
+      - Barra de pestañas para alternar entre *Síntesis Global* y cada una de las 4 rutas curriculares (`Lógica`, `Computacional`, `Lectora`, `Estratégica`).
+      - Cuadrícula de 6 tarjetas de métricas en 2 columnas x 3 filas con barras de progreso visuales y porcentajes de adquisición.
+      - Panel inferior con diagnóstico cualitativo y orientación pedagógica.
+  - Integración en [`WorldScene.js`](src/game/scenes/WorldScene.js) y [`SelectCompetencyScene.js`](src/game/scenes/SelectCompetencyScene.js):
+    - Botón de acceso directo `📊 Métricas [B]` en el HUD superior.
+    - Atajo de teclado directo mediante la tecla `[B]`.
+    - Navegación bidireccional que recuerda la escena de origen y restaura el contexto al presionar `[ESC / VOLVER]`.
+
+---
+
 ## [0.8.0] - 2026-11-04
 
 ### Añadido

@@ -4,6 +4,7 @@ import { PreloadScene } from '../game/scenes/PreloadScene.js';
 import { WelcomeScene } from '../game/scenes/WelcomeScene.js';
 import { SelectCompetencyScene } from '../game/scenes/SelectCompetencyScene.js';
 import { WorldScene } from '../game/scenes/WorldScene.js';
+import { DashboardScene } from '../game/scenes/DashboardScene.js';
 
 export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 540;
@@ -30,5 +31,5 @@ export const gameConfig = {
       debug: false
     }
   },
-  scene: [BootScene, PreloadScene, WelcomeScene, SelectCompetencyScene, WorldScene]
+  scene: [BootScene, PreloadScene, WelcomeScene, SelectCompetencyScene, WorldScene, DashboardScene]
 };

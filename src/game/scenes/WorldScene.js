@@ -85,6 +85,11 @@ export class WorldScene extends Phaser.Scene {
       this.goToCompetencySelector();
     });
 
+    // Tecla B para abrir dashboard de telemetría y métricas
+    this.input.keyboard.on('keydown-B', () => {
+      this.openDashboard();
+    });
+
     // Eventos disparados por controles táctiles o HUD
     this.events.on('touch-interact', () => {
       this.handleTerminalInteraction();
@@ -323,11 +328,26 @@ export class WorldScene extends Phaser.Scene {
       }
     });
 
-    // 5. Panel de controles inferior
+    // 5. Botón de Métricas / Dashboard de Aprendizaje [B]
+    const metricsBtn = this.add.text(width - 435, 38, '📊 Métricas [B]', {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+      padding: { x: 8, y: 6 }
+    })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 1)
+    .setInteractive({ useHandCursor: true });
+
+    metricsBtn.on('pointerdown', () => this.openDashboard());
+
+    // 6. Panel de controles inferior
     this.add.text(
       width / 2,
       height - 18,
-      'Controles: [A/D] Correr • [W/Espacio] Saltar • [J] Acción • [E] Terminal • [M] Cambiar Ruta',
+      'Controles: [A/D] Correr • [W/Espacio] Saltar • [E] Terminal • [B] Métricas • [M] Cambiar Ruta',
       {
         fontFamily: 'monospace',
         fontSize: '11px',
@@ -382,6 +402,24 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.fadeOut(200, 10, 12, 22);
     this.time.delayedCall(220, () => {
       this.scene.start('SelectCompetencyScene');
+    });
+  }
+
+  openDashboard() {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+
+    if (this.challengeModal && this.challengeModal.isOpen) {
+      this.challengeModal.close();
+    }
+
+    console.log('[WorldScene] Abriendo DashboardScene...');
+    this.cameras.main.fadeOut(200, 10, 12, 22);
+    this.time.delayedCall(220, () => {
+      this.scene.start('DashboardScene', {
+        fromScene: 'WorldScene',
+        competencyId: sessionState.getActiveCompetency()
+      });
     });
   }
 
