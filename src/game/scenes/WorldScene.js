@@ -172,10 +172,12 @@ export class WorldScene extends Phaser.Scene {
 
     // Terminal educativa 1: Entrada y Diagnóstico del Sector
     const t1 = this.terminals.create(890, 398, 'terminal_device');
+    t1.setData('type', 'standard');
     t1.refreshBody();
 
-    // Terminal educativa 2: Plataforma de Misiones Avanzadas
+    // Terminal educativa 2: Plataforma de Misiones Avanzadas (Transferencia y Retención)
     const t2 = this.terminals.create(1780, 188, 'terminal_device');
+    t2.setData('type', 'transfer_retention');
     t2.refreshBody();
 
     [t1, t2].forEach(terminal => {
@@ -192,7 +194,7 @@ export class WorldScene extends Phaser.Scene {
     // Texto flotante de interacción (en espacio de mundo sobre la terminal)
     this.interactionPrompt = this.add.text(0, 0, '[E] Acceder a Terminal', {
       fontFamily: 'monospace',
-      fontSize: '13px',
+      fontSize: '12px',
       color: this.meta.primaryColorHex,
       backgroundColor: 'rgba(10, 12, 22, 0.92)',
       padding: { x: 8, y: 4 },
@@ -325,7 +327,19 @@ export class WorldScene extends Phaser.Scene {
       } else {
         const lvl = educationEngine.getCurrentLevel(compId);
         const label = DIFFICULTY_LABELS[lvl] || `Nivel ${lvl}`;
-        this.levelText.setText(`${this.meta.discipline} • ${label}`);
+        const metrics = educationEngine.getLearningMetrics(compId);
+
+        let extraStats = '';
+        if (metrics) {
+          if (metrics.transfer && metrics.transfer.evaluated > 0) {
+            extraStats += ` • Transf: ${metrics.transfer.rate}%`;
+          }
+          if (metrics.retention && metrics.retention.evaluated > 0) {
+            extraStats += ` • Retenc: ${metrics.retention.index}%`;
+          }
+        }
+
+        this.levelText.setText(`${this.meta.discipline} • ${label}${extraStats}`);
         this.levelText.setColor('#38bdf8');
       }
     } catch (err) {
@@ -348,9 +362,13 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  handleTerminalInteraction() {
+  handleTerminalInteraction(terminalType = 'standard') {
     if (this.challengeModal && !this.challengeModal.isOpen) {
-      this.challengeModal.open();
+      if (terminalType === 'transfer_retention') {
+        this.challengeModal.open({ forceTransfer: true });
+      } else {
+        this.challengeModal.open();
+      }
     }
   }
 
@@ -381,11 +399,14 @@ export class WorldScene extends Phaser.Scene {
     });
 
     if (nearTerminal && activeTerminal) {
+      const isAdvanced = activeTerminal.getData('type') === 'transfer_retention';
+      this.interactionPrompt.setText(isAdvanced ? '[E] Terminal de Transferencia y Retención' : '[E] Terminal de Diagnóstico y Práctica');
+      this.interactionPrompt.setColor(isAdvanced ? '#c084fc' : this.meta.primaryColorHex);
       this.interactionPrompt.setPosition(activeTerminal.x, activeTerminal.y - 50);
       this.interactionPrompt.setVisible(true);
 
       if (Phaser.Input.Keyboard.JustDown(this.keyE)) {
-        this.handleTerminalInteraction();
+        this.handleTerminalInteraction(activeTerminal.getData('type'));
       }
     } else {
       this.interactionPrompt.setVisible(false);

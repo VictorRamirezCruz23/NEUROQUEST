@@ -6,6 +6,30 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.6.0] - 2026-11-04
+
+### Añadido
+- **Incremento 6 (Evaluaciones de Transferencia y Retención Temporal):**
+  - Implementación de [`TransferAssessment.js`](src/education/assessments/TransferAssessment.js):
+    - Detección de elegibilidad para transferencia tras racha de consistencia formativa autónoma.
+    - Registro y cálculo de métricas de transferencia cercana y lejana (`transferSuccessRate`, transferencias autónomas).
+  - Implementación de [`RetentionAssessment.js`](src/education/assessments/RetentionAssessment.js):
+    - Sistema de programación de retención temporal tras enfriamiento (`coolingPeriodMs`), evaluando la persistencia de conceptos independientemente de la primera sesión.
+    - Detección y registro de desvanecimiento conceptual (`decayDetectedCount`) para activar refuerzo formativo.
+  - Expansión de [`ChallengeRepository.js`](src/education/repositories/ChallengeRepository.js):
+    - Desafíos específicos de Transferencia Cognitiva en contextos novedosos (Soporte Vital, Cuarentena UV, Cláusulas Espaciales, Logística de Emergencias).
+    - Desafíos específicos de Retención Temporal con problemas isomorfos para las 4 competencias.
+    - Métodos especializados `getTransferChallenge()` y `getRetentionChallenge()`.
+  - Integración en [`EducationEngine.js`](src/education/engines/EducationEngine.js) de los 6 Indicadores de Aprendizaje:
+    - 1. Participación, 2. Rendimiento, 3. Autonomía, 4. Dominio, 5. Transferencia, 6. Retención.
+  - Actualización de [`WorldScene.js`](src/game/scenes/WorldScene.js):
+    - Terminal 2 configurada como "Plataforma de Transferencia y Retención" con prompt interactivo dinámico.
+    - HUD superior sincronizado con los porcentajes de Transferencia y Retención en tiempo real.
+  - Actualización de [`ChallengeModal.js`](src/ui/components/ChallengeModal.js):
+    - Banners y tarjetas de retroalimentación diferenciados para Transferencia (púrpura/índigo) y Retención (verde esmeralda).
+
+---
+
 ## [0.5.0] - 2026-11-04
 
 ### Añadido

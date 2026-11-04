@@ -10,7 +10,7 @@
 | **3** | Pantalla y flujo de Selección de Competencias | ✅ Completado |
 | **4** | Motor educativo modular (`EducationEngine`) y Ruta 01 | ✅ Completado |
 | **5** | Diagnóstico inicial y algoritmo de dificultad adaptativa | ✅ Completado |
-| **6** | Evaluaciones de transferencia y retención temporal | ⏳ Pendiente de autorización |
+| **6** | Evaluaciones de transferencia y retención temporal | ✅ Completado |
 | **7** | Integración con Firebase (Auth y Cloud Firestore) | ⏳ Pendiente de autorización |
 | **8** | Integración de backend Gemini API (Cloud Functions) | ⏳ Pendiente de autorización |
 | **9** | Dashboard analítico de aprendizaje individual | ⏳ Pendiente de autorización |

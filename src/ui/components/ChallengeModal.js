@@ -50,8 +50,9 @@ export class ChallengeModal {
     });
   }
 
-  open() {
-    this.currentChallenge = educationEngine.getNextChallenge();
+  open(options = {}) {
+    this.currentOptions = options;
+    this.currentChallenge = educationEngine.getNextChallenge(null, options);
     if (!this.currentChallenge) {
       console.warn('[ChallengeModal] No hay desafíos en el banco para la competencia activa.');
       return;
@@ -139,17 +140,33 @@ export class ChallengeModal {
     );
     closeBtn.on('pointerdown', () => this.close());
 
-    // 2. Banner de Diagnóstico / Nivel Adaptativo (Y: modalY + 50 px)
-    const isDiag = this.currentChallenge.isDiagnostic;
+    // 2. Banner de Diagnóstico / Nivel Adaptativo / Transferencia / Retención (Y: modalY + 50 px)
+    const isDiag = !!this.currentChallenge.isDiagnostic;
+    const isTransfer = !!this.currentChallenge.isTransfer;
+    const isRetention = !!this.currentChallenge.isRetention;
     const levelLabel = DIFFICULTY_LABELS[currentLevel] || `Nivel ${currentLevel}`;
 
-    const bannerBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
-    bannerBg.fillStyle(isDiag ? 0x78350f : 0x1e293b, 0.85);
-    bannerBg.fillRoundedRect(modalX + 18, modalY + 48, modalW - 36, 22, 4);
+    let bannerBgColor = 0x1e293b;
+    let bannerTextColor = meta.primaryColorHex;
+    let bannerText = `★ HABILIDAD: ${this.currentChallenge.skillName} • ${levelLabel.toUpperCase()}`;
 
-    const bannerText = isDiag
-      ? '★ EVALUACIÓN DIAGNÓSTICA INICIAL • Identificación de conocimientos previos sin penalización'
-      : `★ HABILIDAD: ${this.currentChallenge.skillName} • ${levelLabel.toUpperCase()}`;
+    if (isDiag) {
+      bannerBgColor = 0x78350f;
+      bannerTextColor = '#fbbf24';
+      bannerText = '★ EVALUACIÓN DIAGNÓSTICA INICIAL • Calibración de línea base sin penalización';
+    } else if (isTransfer) {
+      bannerBgColor = 0x4c1d95;
+      bannerTextColor = '#c084fc';
+      bannerText = `★ DESAFÍO DE TRANSFERENCIA COGNITIVA • Contexto: ${this.currentChallenge.domainContext || 'Novedoso'}`;
+    } else if (isRetention) {
+      bannerBgColor = 0x064e3b;
+      bannerTextColor = '#34d399';
+      bannerText = '★ EVALUACIÓN DE RETENCIÓN TEMPORAL • Persistencia conceptual tras intervalo';
+    }
+
+    const bannerBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
+    bannerBg.fillStyle(bannerBgColor, 0.88);
+    bannerBg.fillRoundedRect(modalX + 18, modalY + 48, modalW - 36, 22, 4);
 
     this.track(
       this.scene.add.text(
@@ -159,7 +176,7 @@ export class ChallengeModal {
         {
           fontFamily: 'monospace',
           fontSize: '10px',
-          color: isDiag ? '#fbbf24' : meta.primaryColorHex,
+          color: bannerTextColor,
           fontStyle: 'bold'
         }
       ).setDepth(baseDepth + 3)
@@ -365,7 +382,7 @@ export class ChallengeModal {
 
     let contentY = modalY + 54;
 
-    // 2. Estado de diagnóstico o acierto
+    // 2. Estado de diagnóstico, transferencia, retención o intento regular
     if (result.isDiagnostic && result.diagnosticResult) {
       const diagBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
       diagBg.fillStyle(0x1e293b, 0.9);
@@ -396,6 +413,76 @@ export class ChallengeModal {
             fontFamily: 'Segoe UI',
             fontSize: '11px',
             color: '#cbd5e1'
+          }
+        ).setDepth(baseDepth + 3)
+      );
+
+      contentY += 56;
+    } else if (result.isTransfer && result.transferResult) {
+      const transBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
+      transBg.fillStyle(0x2e1065, 0.92);
+      transBg.fillRoundedRect(modalX + 22, contentY, modalW - 44, 46, 6);
+      transBg.lineStyle(1, 0xa855f7, 0.8);
+      transBg.strokeRoundedRect(modalX + 22, contentY, modalW - 44, 46, 6);
+
+      this.track(
+        this.scene.add.text(
+          modalX + 32,
+          contentY + 8,
+          `★ EVALUACIÓN DE TRANSFERENCIA: ${result.transferResult.transferredSkill} (${result.transferResult.transferSuccessRate}% Éxito)`,
+          {
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: '#c084fc',
+            fontStyle: 'bold'
+          }
+        ).setDepth(baseDepth + 3)
+      );
+
+      this.track(
+        this.scene.add.text(
+          modalX + 32,
+          contentY + 26,
+          result.transferResult.feedbackMessage,
+          {
+            fontFamily: 'Segoe UI',
+            fontSize: '11px',
+            color: '#e9d5ff'
+          }
+        ).setDepth(baseDepth + 3)
+      );
+
+      contentY += 56;
+    } else if (result.isRetention && result.retentionResult) {
+      const retBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
+      retBg.fillStyle(0x064e3b, 0.92);
+      retBg.fillRoundedRect(modalX + 22, contentY, modalW - 44, 46, 6);
+      retBg.lineStyle(1, 0x10b981, 0.8);
+      retBg.strokeRoundedRect(modalX + 22, contentY, modalW - 44, 46, 6);
+
+      this.track(
+        this.scene.add.text(
+          modalX + 32,
+          contentY + 8,
+          `★ EVALUACIÓN DE RETENCIÓN TEMPORAL: ${result.retentionResult.evaluatedSkill} (Índice de Retención: ${result.retentionResult.retentionIndex}%)`,
+          {
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: '#34d399',
+            fontStyle: 'bold'
+          }
+        ).setDepth(baseDepth + 3)
+      );
+
+      this.track(
+        this.scene.add.text(
+          modalX + 32,
+          contentY + 26,
+          result.retentionResult.feedbackMessage,
+          {
+            fontFamily: 'Segoe UI',
+            fontSize: '11px',
+            color: '#a7f3d0'
           }
         ).setDepth(baseDepth + 3)
       );

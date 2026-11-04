@@ -130,6 +130,60 @@ export const CHALLENGES_BANK = {
         'Pista 1: El 25% de 800 es 200. ¿Cuántos MW quedan?',
         'Pista 2: Sobre los 600 MW restantes, calcula el 20% (600 × 0.2 = 120 MW) y súmalo.'
       ]
+    },
+    {
+      id: 'LM_TRANS_01',
+      competencyId: 'logic_math',
+      skillId: 'fractions_ratios',
+      skillName: 'Transferencia: Razones de Mezcla en Soporte Vital',
+      educationalObjective: 'Transferir el concepto de partes proporcionales a un entorno de atmósfera respirable.',
+      difficulty: 2,
+      isDiagnostic: false,
+      isTransfer: true,
+      transferType: 'near',
+      domainContext: 'Aeroespacial y Soporte Vital',
+      context: 'Un módulo de escape biológico requiere recargar su tanque de 600 litros de atmósfera respirable. La razón estricta entre Nitrógeno y Oxígeno debe ser de 4 a 1 (4 partes de N2 por cada 1 parte de O2).',
+      statement: '¿Cuántos litros de Oxígeno puro deben inyectarse para completar el tanque con la proporción exacta de supervivencia?',
+      options: [
+        '120 litros (1 parte de 5 partes totales: 600 ÷ 5 = 120 L)',
+        '150 litros (Error de dividir entre 4 en vez del total de partes)',
+        '240 litros (Error de asignar 40% del total)',
+        '100 litros (Asignación arbitraria de un sexto)'
+      ],
+      correctIndex: 0,
+      explanation: 'Una razón de 4 a 1 significa que hay 4 + 1 = 5 partes en total. El oxígeno ocupa 1 de esas 5 partes (1/5). Calculando: 600 ÷ 5 = 120 litros de O2 (y 480 litros de N2).',
+      conceptNeeded: 'Proporcionalidad directa y razones compuestas en mezclas volumétricas.',
+      strategy: 'Suma las partes de la razón (4 + 1 = 5) para hallar el divisor común del volumen total.',
+      hints: [
+        'Pista 1: Si hay 4 partes de nitrógeno por cada 1 de oxígeno, la mezcla total tiene 4 + 1 = 5 partes.',
+        'Pista 2: Divide 600 entre 5 para obtener el volumen de una sola parte.'
+      ]
+    },
+    {
+      id: 'LM_RET_01',
+      competencyId: 'logic_math',
+      skillId: 'patterns_sequences',
+      skillName: 'Retención Temporal: Recurrencia en Pulsos Críticos',
+      educationalObjective: 'Comprobar la retención del principio de recursividad tras un intervalo temporal.',
+      difficulty: 2,
+      isDiagnostic: false,
+      isRetention: true,
+      context: 'Tras varios ciclos de actividad en la instalación, el condensador principal vuelve a mostrar un patrón oscilante para verificar la retención cognitiva.',
+      statement: 'Observa la nueva secuencia en el monitor:\n\n5,  11,  23,  47,  95,  [ ? ]\n\n¿Cuál es el valor que equilibra el siguiente pulso?',
+      options: [
+        '191 ((95 × 2) + 1 = 191; diferencias duplicadas: +6, +12, +24, +48, +96)',
+        '143 (Aumento lineal simple)',
+        '190 (Duplicar sin sumar la unidad constante)',
+        '181 (Error de cálculo en la duplicación)'
+      ],
+      correctIndex: 0,
+      explanation: 'La regla recursiva retenida es: Siguiente = (Anterior × 2) + 1. (95 × 2) + 1 = 190 + 1 = 191. Las diferencias entre términos se duplican sucesivamente: +6, +12, +24, +48, +96.',
+      conceptNeeded: 'Recursividad multiplicativa y conservación de patrones a largo plazo.',
+      strategy: 'Verifica si la relación (×2 + 1) o la duplicación de incrementos se mantiene respecto a tu aprendizaje anterior.',
+      hints: [
+        'Pista 1: Compara 11 - 5 = 6; 23 - 11 = 12; 47 - 23 = 24...',
+        'Pista 2: La diferencia previa fue 48. La siguiente diferencia es 96. Suma 95 + 96.'
+      ]
     }
   ],
 
@@ -208,6 +262,60 @@ export const CHALLENGES_BANK = {
       hints: [
         'Pista 1: ¿Qué ocurre cuando contador llega a 4? El condicional le suma 2.',
         'Pista 2: De 6 baja a 4, pero de 4 vuelve a subir a 6. ¿Llegará alguna vez a 0?'
+      ]
+    },
+    {
+      id: 'CT_TRANS_01',
+      competencyId: 'computational_thinking',
+      skillId: 'conditionals_logic',
+      skillName: 'Transferencia: Cuarentena y Esterilización UV',
+      educationalObjective: 'Aplicar lógica booleana compuesta a un protocolo de bioseguridad en laboratorios.',
+      difficulty: 2,
+      isDiagnostic: false,
+      isTransfer: true,
+      transferType: 'near',
+      domainContext: 'Bioseguridad y Automatización de Válvulas',
+      context: 'El autoclave de bioseguridad evalúa la regla:\n\nSI (presenciaPatogeno == true OR radiacionExtrema == true) AND (selladoHermetico == true)\nENTONCES IniciarEsterilizacionUV()',
+      statement: 'Lectura de sensores: presenciaPatogeno = false, radiacionExtrema = true, selladoHermetico = true.\n\n¿Se activará la esterilización UV en el autoclave?',
+      options: [
+        'Sí, porque radiacionExtrema hace verdadero el bloque (OR) y el sellado hermético es verdadero.',
+        'No, porque presenciaPatogeno es falso y desactiva todo el sistema.',
+        'No, porque el operador AND requiere que presenciaPatogeno también sea verdadero.',
+        'El sistema se bloquea por contradicción en los sensores.'
+      ],
+      correctIndex: 0,
+      explanation: 'Evaluación lógica: (FALSO OR VERDADERO) = VERDADERO. Luego: VERDADERO AND selladoHermetico(VERDADERO) = VERDADERO. La condición se satisface y la esterilización UV se ejecuta con éxito.',
+      conceptNeeded: 'Disyunción lógica (OR), conjunción lógica (AND) y precedencia de paréntesis.',
+      strategy: 'Evalúa el contenido entre paréntesis primero. En un OR, con un solo término verdadero, todo el paréntesis resulta verdadero.',
+      hints: [
+        'Pista 1: En (Falso OR Verdadero), el resultado siempre es Verdadero.',
+        'Pista 2: Como el paréntesis es Verdadero y el sellado es Verdadero, el AND final se cumple.'
+      ]
+    },
+    {
+      id: 'CT_RET_01',
+      competencyId: 'computational_thinking',
+      skillId: 'algorithms_sequencing',
+      skillName: 'Retención Temporal: Restauración Algorítmica Concurrente',
+      educationalObjective: 'Verificar la conservación del principio de secuenciación y precondiciones operativas.',
+      difficulty: 2,
+      isDiagnostic: false,
+      isRetention: true,
+      context: 'El subsistema de memoria persistente necesita programar una copia de seguridad tras varias horas de operación sin intervención.',
+      statement: '¿Cuál es la secuencia algorítmica canónica para capturar la instantánea sin corrupción de datos?\n\n1. Validar firma hash de integridad\n2. Detener temporalmente los hilos de escritura\n3. Guardar imagen física en disco\n4. Reanudar hilos de escritura',
+      options: [
+        '2 ➔ 3 ➔ 1 ➔ 4 (Detener escrituras ➔ Guardar imagen ➔ Validar firma ➔ Reanudar)',
+        '1 ➔ 2 ➔ 3 ➔ 4 (Validar antes de guardar)',
+        '3 ➔ 2 ➔ 4 ➔ 1 (Guardar sin pausar escrituras corrompe datos concurrentes)',
+        '4 ➔ 1 ➔ 2 ➔ 3 (Reanudar antes de capturar el estado)'
+      ],
+      correctIndex: 0,
+      explanation: 'Para evitar condiciones de carrera (race conditions), la secuencia algorítmica exige: 1º Pausar escrituras, 2º Volcar la instantánea, 3º Verificar el hash de integridad y 4º Reanudar la ejecución concurrente.',
+      conceptNeeded: 'Secuenciación algorítmica estricta e invariantes de sincronización.',
+      strategy: 'Recuerda el orden aprendido: aislar/pausar siempre antes de manipular, y reanudar siempre al final.',
+      hints: [
+        'Pista 1: No puedes validar un archivo antes de haberlo escrito en disco.',
+        'Pista 2: Reanudar las operaciones siempre debe ser la última instrucción de cierre.'
       ]
     }
   ],
@@ -288,6 +396,60 @@ export const CHALLENGES_BANK = {
         'Pista 1: ¿Qué responde el autor a las críticas? En vez de mostrar datos, ataca a quienes dudan.',
         'Pista 2: La frase "aunque no hemos publicado los resultados... deben confiar" delata falta de evidencia.'
       ]
+    },
+    {
+      id: 'RC_TRANS_01',
+      competencyId: 'reading_comprehension',
+      skillId: 'main_idea_inference',
+      skillName: 'Transferencia: Interpretación de Cláusulas y Manifiestos',
+      educationalObjective: 'Aplicar lectura inferencial y jerarquía normativa a un contrato de transporte intergaláctico.',
+      difficulty: 2,
+      isDiagnostic: false,
+      isTransfer: true,
+      transferType: 'near',
+      domainContext: 'Derecho Espacial y Manifiestos de Carga',
+      context: 'Fragmento de una póliza de navegación espacial:\n\n"La base no indemnizará la pérdida de cargamento perecedero si la demora en el atraque se debe a mantenimiento programado notificado con 48 horas de antelación. No obstante, si el retraso deriva de fallas mecánicas imprevistas en los brazos de acople, la base reembolsará el 100% del valor declarado, con total independencia de cualquier notificación previa."',
+      statement: 'El buque Titán sufrió la descomposición de sus víveres tras 60 horas de espera debido a la rotura imprevista del pistón de acople 4. La base alega que había emitido una circular de alerta 3 días antes.\n\nSegún el texto, ¿procede la indemnización?',
+      options: [
+        'Sí, porque el fallo mecánico en los brazos de acople tiene prioridad y obliga al reembolso del 100%.',
+        'No, porque la base notificó con más de 48 horas (3 días) de antelación.',
+        'Solo procede el 50% por responsabilidad compartida.',
+        'El texto no prevé contingencias mecánicas imprevistas.'
+      ],
+      correctIndex: 0,
+      explanation: 'El conector adversativo "No obstante" introduce la excepción prioritaria: cuando el retraso deriva de fallas mecánicas en los brazos de acople, el reembolso procede al 100% "con total independencia de cualquier notificación previa".',
+      conceptNeeded: 'Inferencia contextual y comprensión de excepciones normativas condicionales.',
+      strategy: 'Localiza qué condición anula expresamente la notificación previa en el texto.',
+      hints: [
+        'Pista 1: Lee atentamente la frase que empieza con "No obstante".',
+        'Pista 2: El fallo mecánico exige el 100% "con total independencia de cualquier notificación previa".'
+      ]
+    },
+    {
+      id: 'RC_RET_01',
+      competencyId: 'reading_comprehension',
+      skillId: 'argument_analysis',
+      skillName: 'Retención Temporal: Validez Argumentativa en Auditorías',
+      educationalObjective: 'Comprobar la retención del análisis crítico frente a falacias deductivas.',
+      difficulty: 2,
+      isDiagnostic: false,
+      isRetention: true,
+      context: 'Acta de auditoría de seguridad post-incidente en la instalación:\n\n"Siempre que la cámara presurizada sufre una intrusión física, los sensores cuánticos activan el bloqueo hermético y emiten una sirena de 90 dB. La telemetría grabó con total nitidez el bloqueo hermético y la sirena de 90 dB a las 03:14 AM."',
+      statement: '¿Demuestran estos registros con certeza lógica e indiscutible que ocurrió una intrusión física?',
+      options: [
+        'No; deducir la intrusión cometería la falacia de afirmación del consecuente (otra anomalía o prueba manual pudo activar la alarma).',
+        'Sí; la presencia del bloqueo y la sirena prueba de forma irrefutable la intrusión.',
+        'Sí, porque los sensores cuánticos no admiten márgenes de error.',
+        'No, porque no se especifica la temperatura de la cámara.'
+      ],
+      correctIndex: 0,
+      explanation: 'La regla afirma: "Si hay intrusión ➔ Bloqueo y Alarma". Observar el consecuente (Bloqueo y Alarma) no prueba necesariamente el antecedente (intrusión), pues una prueba técnica o cortocircuito pudo disparar los sensores (falacia de afirmación del consecuente).',
+      conceptNeeded: 'Conservación del razonamiento lógico deductivo y detección de falacias.',
+      strategy: 'Pregúntate: ¿existe alguna otra causa posible por la que la alarma pudo haber sonado?',
+      hints: [
+        'Pista 1: El texto no dice que la alarma suene ÚNICAMENTE por una intrusión.',
+        'Pista 2: Afirmar el resultado para probar la causa es una falacia argumentativa común.'
+      ]
     }
   ],
 
@@ -367,6 +529,60 @@ export const CHALLENGES_BANK = {
         'Pista 1: Si asignas menos de 50 a los escudos, la estación se destruye. Si asignas menos de 35 a soporte vital, la tripulación se asfixia.',
         'Pista 2: 50 + 35 = 85. De las 100 unidades quedan 15 para la computadora.'
       ]
+    },
+    {
+      id: 'SM_TRANS_01',
+      competencyId: 'strategic_multidisciplinary',
+      skillId: 'root_cause_analysis',
+      skillName: 'Transferencia: Diagnóstico Sistémico en Logística de Evacuación',
+      educationalObjective: 'Transferir la identificación de causas raíz a una crisis logística de transporte.',
+      difficulty: 2,
+      isDiagnostic: false,
+      isTransfer: true,
+      transferType: 'near',
+      domainContext: 'Gestión de Emergencias y Logística Masiva',
+      context: 'En un simulacro de evacuación urgente: 1) Las cápsulas de escape despegan al 30% de su capacidad por límite de tiempo, 2) Se generan aglomeraciones masivas en los pasillos de acceso, 3) El software de turnos emite billetes con códigos duplicados que son rechazados en los torniquetes de abordaje.',
+      statement: '¿Qué intervención resuelve sistémicamente el problema desde su causa motriz?',
+      options: [
+        'Corregir el algoritmo generador de códigos para evitar duplicados en el software de turnos.',
+        'Ensanchar físicamente los pasillos para contener más personas en espera.',
+        'Obligar a los pilotos de las cápsulas a retrasar el despegue indefinidamente.',
+        'Incrementar la velocidad máxima de las cápsulas de escape.'
+      ],
+      correctIndex: 0,
+      explanation: 'El software con códigos duplicados es la causa raíz motriz: causa el rechazo en torniquetes, lo que genera las aglomeraciones y deriva en cápsulas vacías por vencimiento de tiempo. Corregir el software suprime todos los síntomas derivados.',
+      conceptNeeded: 'Causalidad circular y mitigación de cuellos de botella desde la raíz.',
+      strategy: 'Pregúntate qué elemento generó que los torniquetes bloquearan el paso.',
+      hints: [
+        'Pista 1: Los pasillos se congestionaron PORQUE los torniquetes rechazaban los billetes duplicados.',
+        'Pista 2: Arreglar el software elimina tanto el atasco como el despegue de cápsulas vacías.'
+      ]
+    },
+    {
+      id: 'SM_RET_01',
+      competencyId: 'strategic_multidisciplinary',
+      skillId: 'resource_decision',
+      skillName: 'Retención Temporal: Asignación Crítica bajo Incertidumbre',
+      educationalObjective: 'Comprobar la retención del principio de prioridad lexicográfica en soporte vital.',
+      difficulty: 2,
+      isDiagnostic: false,
+      isRetention: true,
+      context: 'Tras varios ciclos de navegación estable, se presenta una despresurización con 200 kW de energía disponibles.',
+      statement: 'Supervivencia de tripulación requiere 120 kW innegociables. El blindaje requiere 60 kW para resistir micro-meteoritos. El transmisor pide 50 kW para emitir una señal de auxilio a la flota.\n\n¿Cuál es la asignación estratégica que preserva la vida y la integridad estructural?',
+      options: [
+        'Tripulación: 120 kW, Blindaje: 60 kW, Transmisor: 20 kW en modo baja potencia (Total = 200 kW)',
+        'Tripulación: 100 kW, Blindaje: 50 kW, Transmisor: 50 kW (Reparto equitativo arriesgando asfixia)',
+        'Tripulación: 120 kW, Blindaje: 30 kW, Transmisor: 50 kW (Blindaje insuficiente ante impactos)',
+        'Apagar soporte vital para priorizar la transmisión de socorro'
+      ],
+      correctIndex: 0,
+      explanation: 'Los requerimientos absolutos de soporte biológico (120) y protección estructural (60) suman 180 kW. Las 20 unidades restantes se asignan al transmisor en modo ahorro. La vida y la estructura física son restricciones duras prioritarias.',
+      conceptNeeded: 'Conservación del balance multicriterio bajo restricciones duras.',
+      strategy: 'Asegura primero la vida (120) y la nave (60). El resto va a la comunicación secundaria.',
+      hints: [
+        'Pista 1: 120 + 60 = 180 kW indispensables. 200 - 180 = 20 kW.',
+        'Pista 2: La llamada de socorro es inútil si la tripulación o la estación no sobreviven.'
+      ]
     }
   ]
 };
@@ -382,5 +598,35 @@ export class ChallengeRepository {
       if (match) return match;
     }
     return null;
+  }
+
+  /**
+   * Obtiene un desafío de transferencia para la competencia activa.
+   * @param {string} competencyId
+   * @param {string} [skillId]
+   * @returns {Object|null}
+   */
+  static getTransferChallenge(competencyId, skillId = null) {
+    const list = this.getChallengesByCompetency(competencyId);
+    if (skillId) {
+      const match = list.find(c => c.isTransfer && c.skillId === skillId);
+      if (match) return match;
+    }
+    return list.find(c => c.isTransfer) || null;
+  }
+
+  /**
+   * Obtiene un desafío de retención temporal para la competencia activa.
+   * @param {string} competencyId
+   * @param {string} [skillId]
+   * @returns {Object|null}
+   */
+  static getRetentionChallenge(competencyId, skillId = null) {
+    const list = this.getChallengesByCompetency(competencyId);
+    if (skillId) {
+      const match = list.find(c => c.isRetention && c.skillId === skillId);
+      if (match) return match;
+    }
+    return list.find(c => c.isRetention) || null;
   }
 }
