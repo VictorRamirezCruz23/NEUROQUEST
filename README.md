@@ -1,4 +1,5 @@
 # NEUROQUEST
+Importante leer para contextualizar el proyecto
 
 > **Plataforma de Aventura Educativa Adaptativa 2D en Pixel Art**
 
