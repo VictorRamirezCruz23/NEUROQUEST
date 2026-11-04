@@ -3,8 +3,9 @@ import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { sessionState } from '../../core/sessionState.js';
 
 /**
- * ChallengeModal.js — Interfaz interactiva para resolver desafíos educativos en el juego.
- * Gestiona la visualización del enunciado, opciones, solicitud de pistas y retroalimentación formativa.
+ * ChallengeModal.js — Interfaz interactiva de terminal educativa.
+ * Arquitectura plana (flat screen-space) sin contenedores anidados para garantizar
+ * que el hit-testing táctil y de ratón funcione con 100% de precisión sin importar el scroll de la cámara.
  */
 export class ChallengeModal {
   /**
@@ -16,391 +17,482 @@ export class ChallengeModal {
     this.player = player;
     this.isOpen = false;
     this.currentChallenge = null;
+    this.elements = [];
 
-    this.container = scene.add.container(0, 0);
-    this.container.setScrollFactor(0);
-    this.container.setDepth(2000);
-    this.container.setVisible(false);
+    // Registrar atajos de teclado globales del modal
+    this.setupKeyboardListeners();
+  }
 
-    // Tecla Escape para cerrar
-    this.escKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-    this.escKey.on('down', () => {
-      if (this.isOpen) this.close();
+  setupKeyboardListeners() {
+    this.keyA = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+    this.keyB = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
+    this.keyC = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    this.keyD = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+    this.key1 = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
+    this.key2 = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
+    this.key3 = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
+    this.key4 = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR);
+    this.keyH = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.H);
+    this.keyEnter = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    this.keyEsc = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+    this.scene.input.keyboard.on('keydown', (event) => {
+      if (!this.isOpen) return;
+
+      const code = event.code;
+      if (this.currentView === 'challenge') {
+        if (code === 'KeyA' || code === 'Digit1') this.submitAnswer(0);
+        else if (code === 'KeyB' || code === 'Digit2') this.submitAnswer(1);
+        else if (code === 'KeyC' || code === 'Digit3') this.submitAnswer(2);
+        else if (code === 'KeyD' || code === 'Digit4') this.submitAnswer(3);
+        else if (code === 'KeyH') this.triggerHint();
+      } else if (this.currentView === 'feedback') {
+        if (code === 'Enter' || code === 'Space') {
+          if (this.lastResult && this.lastResult.isCorrect) {
+            this.open();
+          } else {
+            this.renderChallengeView();
+          }
+        }
+      }
+
+      if (code === 'Escape') {
+        this.close();
+      }
     });
   }
 
   /**
-   * Abre la terminal con un nuevo desafío de la competencia activa.
+   * Abre la terminal con un desafío de la competencia activa.
    */
   open() {
     this.currentChallenge = educationEngine.getNextChallenge();
     if (!this.currentChallenge) {
-      console.warn('[ChallengeModal] No hay desafíos disponibles para la competencia activa.');
+      console.warn('[ChallengeModal] No hay desafíos en el banco para la competencia activa.');
       return;
     }
 
     this.isOpen = true;
+    this.currentView = 'challenge';
     if (this.player) this.player.freeze();
 
     this.renderChallengeView();
-    this.container.setVisible(true);
-    this.scene.cameras.main.setAlpha(0.9);
+  }
+
+  clearElements() {
+    this.elements.forEach(el => {
+      if (el && el.destroy) el.destroy();
+    });
+    this.elements = [];
+  }
+
+  track(gameObj) {
+    gameObj.setScrollFactor(0);
+    this.elements.push(gameObj);
+    return gameObj;
   }
 
   renderChallengeView() {
-    this.container.removeAll(true);
+    this.clearElements();
+    this.currentView = 'challenge';
+
     const { width, height } = this.scene.scale;
     const meta = sessionState.getActiveCompetencyMeta();
+    const baseDepth = 2000;
 
-    // Fondo oscurecedor de pantalla completa
-    const backdrop = this.scene.add.rectangle(0, 0, width, height, 0x05070f, 0.82)
-      .setOrigin(0)
-      .setInteractive();
+    // 1. Telón oscuro de fondo
+    const backdrop = this.track(
+      this.scene.add.rectangle(0, 0, width, height, 0x05070f, 0.82)
+        .setOrigin(0)
+        .setDepth(baseDepth)
+        .setInteractive()
+    );
 
-    // Ventana modal central
+    // 2. Ventana modal
     const modalW = Math.min(840, width - 40);
     const modalH = Math.min(480, height - 30);
     const modalX = (width - modalW) / 2;
     const modalY = (height - modalH) / 2;
 
-    const modalBg = this.scene.add.graphics();
+    const modalBg = this.track(
+      this.scene.add.graphics().setDepth(baseDepth + 1)
+    );
     modalBg.fillStyle(0x0f172a, 0.98);
     modalBg.fillRoundedRect(modalX, modalY, modalW, modalH, 12);
     modalBg.lineStyle(2, meta.primaryColor, 1);
     modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 12);
 
-    // Barra de título superior
-    const headerBg = this.scene.add.graphics();
+    // 3. Barra de cabecera
+    const headerBg = this.track(
+      this.scene.add.graphics().setDepth(baseDepth + 2)
+    );
     headerBg.fillStyle(meta.badgeBg, 0.95);
-    headerBg.fillRoundedRect(modalX, modalY, modalW, 46, { tl: 12, tr: 12, bl: 0, br: 0 });
+    headerBg.fillRoundedRect(modalX, modalY, modalW, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
 
-    const headerTitle = this.scene.add.text(
-      modalX + 20,
-      modalY + 14,
-      `[ ${meta.code} ]  TERMINAL PEDAGÓGICA • ${meta.name.toUpperCase()}`,
-      {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#ffffff',
-        fontStyle: 'bold'
-      }
+    this.track(
+      this.scene.add.text(
+        modalX + 20,
+        modalY + 13,
+        `[ ${meta.code} ] TERMINAL PEDAGÓGICA • ${meta.name.toUpperCase()} (MUNDO ${meta.worldNumber})`,
+        {
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }
+      ).setDepth(baseDepth + 3)
     );
 
     // Botón Cerrar (X)
-    const closeBtn = this.scene.add.text(modalX + modalW - 28, modalY + 12, '✕', {
-      fontFamily: 'monospace',
-      fontSize: '18px',
-      color: '#cbd5e1'
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
+    const closeBtn = this.track(
+      this.scene.add.text(modalX + modalW - 28, modalY + 12, '✕', {
+        fontFamily: 'monospace',
+        fontSize: '18px',
+        color: '#cbd5e1'
+      })
+      .setOrigin(0.5)
+      .setDepth(baseDepth + 3)
+      .setInteractive({ useHandCursor: true })
+    );
     closeBtn.on('pointerdown', () => this.close());
 
-    // Subtítulo de habilidad pedagógica
-    const skillText = this.scene.add.text(
-      modalX + 24,
-      modalY + 56,
-      `Habilidad: ${this.currentChallenge.skillName}  |  Dificultad: Nivel ${this.currentChallenge.difficulty}`,
-      {
-        fontFamily: 'monospace',
-        fontSize: '11px',
-        color: meta.primaryColorHex,
-        fontStyle: 'bold'
-      }
+    // 4. Habilidad pedagógica y objetivo
+    this.track(
+      this.scene.add.text(
+        modalX + 24,
+        modalY + 54,
+        `Habilidad: ${this.currentChallenge.skillName}  |  Dificultad: Nivel ${this.currentChallenge.difficulty}`,
+        {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: meta.primaryColorHex,
+          fontStyle: 'bold'
+        }
+      ).setDepth(baseDepth + 3)
     );
 
-    // Contexto narrativo del problema
-    const contextBox = this.scene.add.text(
-      modalX + 24,
-      modalY + 76,
-      `Contexto: ${this.currentChallenge.context}`,
-      {
-        fontFamily: 'Segoe UI',
-        fontSize: '12px',
-        color: '#94a3b8',
-        fontStyle: 'italic',
-        wordWrap: { width: modalW - 48 }
-      }
+    // 5. Contexto del problema
+    this.track(
+      this.scene.add.text(
+        modalX + 24,
+        modalY + 74,
+        `Contexto: ${this.currentChallenge.context}`,
+        {
+          fontFamily: 'Segoe UI',
+          fontSize: '12px',
+          color: '#94a3b8',
+          fontStyle: 'italic',
+          wordWrap: { width: modalW - 48 }
+        }
+      ).setDepth(baseDepth + 3)
     );
 
-    // Enunciado principal del desafío
-    const statementBox = this.scene.add.text(
-      modalX + 24,
-      modalY + 112,
-      this.currentChallenge.statement,
-      {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#f8fafc',
-        wordWrap: { width: modalW - 48 }
-      }
+    // 6. Enunciado del desafío
+    this.track(
+      this.scene.add.text(
+        modalX + 24,
+        modalY + 112,
+        this.currentChallenge.statement,
+        {
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          color: '#f8fafc',
+          wordWrap: { width: modalW - 48 }
+        }
+      ).setDepth(baseDepth + 3)
     );
 
-    // Contenedor de Opciones interactivas
-    const optionsContainer = this.scene.add.container(0, 0);
-    const startOptY = modalY + 200;
+    // 7. Opciones de respuesta interactivas (sin contenedores anidados para garantizar hit-test impecable)
+    const startOptY = modalY + 195;
     const optW = modalW - 48;
-    const optH = 38;
+    const optH = 40;
 
     this.currentChallenge.options.forEach((optText, idx) => {
-      const optY = startOptY + (idx * 46);
-      const optBtn = this.scene.add.container(modalX + 24 + optW / 2, optY + optH / 2);
-      optBtn.setSize(optW, optH);
+      const optY = startOptY + (idx * 48);
+      const letter = String.fromCharCode(65 + idx);
 
-      const optBg = this.scene.add.graphics();
-      optBg.fillStyle(0x1e293b, 0.9);
-      optBg.fillRoundedRect(-optW / 2, -optH / 2, optW, optH, 6);
-      optBg.lineStyle(1, 0x334155, 1);
-      optBg.strokeRoundedRect(-optW / 2, -optH / 2, optW, optH, 6);
+      const btnBg = this.track(
+        this.scene.add.graphics().setDepth(baseDepth + 4)
+      );
 
-      const label = this.scene.add.text(-optW / 2 + 16, 0, `${String.fromCharCode(65 + idx)})  ${optText}`, {
+      const drawOpt = (hover = false) => {
+        btnBg.clear();
+        btnBg.fillStyle(hover ? 0x1d4ed8 : 0x1e293b, 0.95);
+        btnBg.fillRoundedRect(modalX + 24, optY, optW, optH, 6);
+        btnBg.lineStyle(hover ? 2 : 1, hover ? meta.primaryColor : 0x475569, 1);
+        btnBg.strokeRoundedRect(modalX + 24, optY, optW, optH, 6);
+      };
+      drawOpt(false);
+
+      const btnHitZone = this.track(
+        this.scene.add.zone(modalX + 24 + optW / 2, optY + optH / 2, optW, optH)
+          .setDepth(baseDepth + 6)
+          .setInteractive({ useHandCursor: true })
+      );
+
+      const label = this.track(
+        this.scene.add.text(modalX + 40, optY + optH / 2, `[${letter} / ${idx + 1}]  ${optText}`, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#f8fafc'
+        })
+        .setOrigin(0, 0.5)
+        .setDepth(baseDepth + 5)
+      );
+
+      btnHitZone.on('pointerover', () => drawOpt(true));
+      btnHitZone.on('pointerout', () => drawOpt(false));
+      btnHitZone.on('pointerdown', () => this.submitAnswer(idx));
+    });
+
+    // 8. Botón Solicitar Pista
+    const hintBtnY = modalY + modalH - 24;
+    const hintBg = this.track(
+      this.scene.add.graphics().setDepth(baseDepth + 4)
+    );
+    hintBg.fillStyle(0x1e293b, 0.95);
+    hintBg.fillRoundedRect(modalX + 24, hintBtnY - 16, 200, 32, 6);
+    hintBg.lineStyle(1, 0xf59e0b, 0.9);
+    hintBg.strokeRoundedRect(modalX + 24, hintBtnY - 16, 200, 32, 6);
+
+    const hintText = this.track(
+      this.scene.add.text(modalX + 124, hintBtnY, '💡 Pista [H]', {
         fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#e2e8f0'
-      }).setOrigin(0, 0.5);
+        fontSize: '11px',
+        color: '#fbbf24',
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5)
+      .setDepth(baseDepth + 5)
+    );
 
-      optBtn.add([optBg, label]);
-      optBtn.setInteractive(new Phaser.Geom.Rectangle(-optW / 2, -optH / 2, optW, optH), Phaser.Geom.Rectangle.Contains);
+    const hintHit = this.track(
+      this.scene.add.zone(modalX + 124, hintBtnY, 200, 32)
+        .setDepth(baseDepth + 6)
+        .setInteractive({ useHandCursor: true })
+    );
 
-      optBtn.on('pointerover', () => {
-        optBg.clear();
-        optBg.fillStyle(0x2563eb, 0.4);
-        optBg.fillRoundedRect(-optW / 2, -optH / 2, optW, optH, 6);
-        optBg.lineStyle(2, meta.primaryColor, 1);
-        optBg.strokeRoundedRect(-optW / 2, -optH / 2, optW, optH, 6);
-      });
+    hintHit.on('pointerdown', () => this.triggerHint());
 
-      optBtn.on('pointerout', () => {
-        optBg.clear();
-        optBg.fillStyle(0x1e293b, 0.9);
-        optBg.fillRoundedRect(-optW / 2, -optH / 2, optW, optH, 6);
-        optBg.lineStyle(1, 0x334155, 1);
-        optBg.strokeRoundedRect(-optW / 2, -optH / 2, optW, optH, 6);
-      });
-
-      optBtn.on('pointerdown', () => {
-        this.submitAnswer(idx);
-      });
-
-      optionsContainer.add(optBtn);
-    });
-
-    // Botón de Pistas Contextuales
-    const hintBtnContainer = this.scene.add.container(modalX + 110, modalY + modalH - 26);
-    const hintBg = this.scene.add.graphics();
-    hintBg.fillStyle(0x1e293b, 0.85);
-    hintBg.fillRoundedRect(-90, -16, 180, 32, 6);
-    hintBg.lineStyle(1, 0xf59e0b, 0.8);
-    hintBg.strokeRoundedRect(-90, -16, 180, 32, 6);
-
-    const hintLabel = this.scene.add.text(0, 0, '💡 Solicitar Pista', {
-      fontFamily: 'monospace',
-      fontSize: '11px',
-      color: '#fbbf24',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    hintBtnContainer.add([hintBg, hintLabel]);
-    hintBtnContainer.setSize(180, 32);
-    hintBtnContainer.setInteractive(new Phaser.Geom.Rectangle(-90, -16, 180, 32), Phaser.Geom.Rectangle.Contains);
-
-    hintBtnContainer.on('pointerdown', () => {
-      const hint = educationEngine.requestHint(this.currentChallenge);
-      if (hint) {
-        this.showHintToast(modalX + 24, modalY + modalH - 75, modalW - 48, hint);
-      }
-    });
-
-    this.container.add([
-      backdrop,
-      modalBg,
-      headerBg,
-      headerTitle,
-      closeBtn,
-      skillText,
-      contextBox,
-      statementBox,
-      optionsContainer,
-      hintBtnContainer
-    ]);
+    // Indicador de teclas de acceso rápido
+    this.track(
+      this.scene.add.text(modalX + modalW - 200, hintBtnY, 'Responde: [A,B,C,D / 1,2,3,4]', {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: '#64748b'
+      })
+      .setOrigin(0.5)
+      .setDepth(baseDepth + 5)
+    );
   }
 
-  showHintToast(x, y, w, hintText) {
-    const toast = this.scene.add.text(x, y, hintText, {
-      fontFamily: 'Segoe UI',
-      fontSize: '11px',
-      color: '#fef08a',
-      backgroundColor: 'rgba(30, 27, 75, 0.95)',
-      padding: { x: 12, y: 6 },
-      wordWrap: { width: w }
-    });
-    this.container.add(toast);
+  triggerHint() {
+    const hint = educationEngine.requestHint(this.currentChallenge);
+    if (hint) {
+      const { width, height } = this.scene.scale;
+      const modalW = Math.min(840, width - 40);
+      const modalH = Math.min(480, height - 30);
+      const modalX = (width - modalW) / 2;
+      const modalY = (height - modalH) / 2;
 
-    this.scene.time.delayedCall(6000, () => {
-      toast.destroy();
-    });
+      const toast = this.track(
+        this.scene.add.text(modalX + 24, modalY + modalH - 70, hint, {
+          fontFamily: 'Segoe UI',
+          fontSize: '12px',
+          color: '#fef08a',
+          backgroundColor: 'rgba(30, 27, 75, 0.98)',
+          padding: { x: 12, y: 8 },
+          wordWrap: { width: modalW - 48 }
+        }).setDepth(2010)
+      );
+
+      this.scene.time.delayedCall(7000, () => {
+        if (toast && toast.destroy) toast.destroy();
+      });
+    }
   }
 
   submitAnswer(optionIndex) {
+    if (!this.isOpen || this.currentView !== 'challenge') return;
     const result = educationEngine.evaluateAnswer(this.currentChallenge, optionIndex);
+    this.lastResult = result;
     this.renderFeedbackView(result);
   }
 
   renderFeedbackView(result) {
-    this.container.removeAll(true);
+    this.clearElements();
+    this.currentView = 'feedback';
+
     const { width, height } = this.scene.scale;
     const meta = sessionState.getActiveCompetencyMeta();
+    const baseDepth = 2000;
 
-    const backdrop = this.scene.add.rectangle(0, 0, width, height, 0x05070f, 0.85)
-      .setOrigin(0)
-      .setInteractive();
+    const backdrop = this.track(
+      this.scene.add.rectangle(0, 0, width, height, 0x05070f, 0.85)
+        .setOrigin(0)
+        .setDepth(baseDepth)
+        .setInteractive()
+    );
 
     const modalW = Math.min(840, width - 40);
     const modalH = Math.min(480, height - 30);
     const modalX = (width - modalW) / 2;
     const modalY = (height - modalH) / 2;
 
-    const modalBg = this.scene.add.graphics();
+    const modalBg = this.track(
+      this.scene.add.graphics().setDepth(baseDepth + 1)
+    );
     modalBg.fillStyle(0x0f172a, 0.98);
     modalBg.fillRoundedRect(modalX, modalY, modalW, modalH, 12);
     const borderColor = result.isCorrect ? 0x10b981 : 0xf59e0b;
     modalBg.lineStyle(2, borderColor, 1);
     modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 12);
 
-    // Barra de cabecera de retroalimentación
-    const headerBg = this.scene.add.graphics();
+    // Cabecera de retroalimentación
+    const headerBg = this.track(
+      this.scene.add.graphics().setDepth(baseDepth + 2)
+    );
     headerBg.fillStyle(result.isCorrect ? 0x065f46 : 0x78350f, 0.95);
-    headerBg.fillRoundedRect(modalX, modalY, modalW, 46, { tl: 12, tr: 12, bl: 0, br: 0 });
+    headerBg.fillRoundedRect(modalX, modalY, modalW, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
 
-    const titleText = this.scene.add.text(
-      modalX + 20,
-      modalY + 14,
-      result.title,
-      {
+    this.track(
+      this.scene.add.text(modalX + 20, modalY + 13, result.title, {
         fontFamily: 'monospace',
-        fontSize: '14px',
+        fontSize: '13px',
         color: '#ffffff',
         fontStyle: 'bold'
-      }
+      }).setDepth(baseDepth + 3)
     );
 
-    // Contenido formativo
-    let contentY = modalY + 65;
+    let contentY = modalY + 62;
 
-    // Qué ocurrió
-    const statusLabel = this.scene.add.text(
-      modalX + 24,
-      contentY,
-      result.isCorrect
-        ? '✓ Respuesta Correcta en ' + result.attempts + ' intento(s).'
-        : '✕ Respuesta Seleccionada: ' + result.selectedOption,
-      {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: result.isCorrect ? '#34d399' : '#f87171',
-        fontStyle: 'bold'
-      }
+    // Estado del intento
+    this.track(
+      this.scene.add.text(
+        modalX + 24,
+        contentY,
+        result.isCorrect
+          ? `✓ RESPUESTA CORRECTA (Intento ${result.attempts} • ${result.hintsUsed} pista(s) usadas)`
+          : `✕ OBSERVACIÓN: "${result.selectedOption}" no es la solución correcta.`,
+        {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: result.isCorrect ? '#34d399' : '#f87171',
+          fontStyle: 'bold'
+        }
+      ).setDepth(baseDepth + 3)
     );
-    contentY += 32;
+    contentY += 30;
 
-    // Explicación pedagógica profunda
-    const explBox = this.scene.add.text(
-      modalX + 24,
-      contentY,
-      `Explicación Conceptual:\n${result.explanation}`,
-      {
-        fontFamily: 'Segoe UI',
-        fontSize: '13px',
-        color: '#f8fafc',
-        wordWrap: { width: modalW - 48 }
-      }
+    // Explicación profunda
+    this.track(
+      this.scene.add.text(
+        modalX + 24,
+        contentY,
+        `Explicación Paso a Paso:\n${result.explanation}`,
+        {
+          fontFamily: 'Segoe UI',
+          fontSize: '13px',
+          color: '#f8fafc',
+          lineSpacing: 4,
+          wordWrap: { width: modalW - 48 }
+        }
+      ).setDepth(baseDepth + 3)
     );
     contentY += 95;
 
-    // Concepto que necesita comprender
-    const conceptBox = this.scene.add.text(
-      modalX + 24,
-      contentY,
-      `Principio Fundamental: ${result.conceptNeeded}`,
-      {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#38bdf8',
-        fontStyle: 'bold',
-        wordWrap: { width: modalW - 48 }
-      }
+    // Principio y concepto faltante
+    this.track(
+      this.scene.add.text(
+        modalX + 24,
+        contentY,
+        `Concepto Requerido: ${result.conceptNeeded}`,
+        {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#38bdf8',
+          fontStyle: 'bold',
+          wordWrap: { width: modalW - 48 }
+        }
+      ).setDepth(baseDepth + 3)
     );
-    contentY += 40;
+    contentY += 38;
 
-    // Estrategia recomendada
-    const strategyBox = this.scene.add.text(
-      modalX + 24,
-      contentY,
-      `Estrategia de Razonamiento:\n${result.strategy}`,
-      {
-        fontFamily: 'Segoe UI',
-        fontSize: '12px',
-        color: '#cbd5e1',
-        wordWrap: { width: modalW - 48 }
-      }
+    // Estrategia de resolución
+    this.track(
+      this.scene.add.text(
+        modalX + 24,
+        contentY,
+        `Estrategia Recomendada:\n${result.strategy}`,
+        {
+          fontFamily: 'Segoe UI',
+          fontSize: '12px',
+          color: '#cbd5e1',
+          wordWrap: { width: modalW - 48 }
+        }
+      ).setDepth(baseDepth + 3)
     );
 
-    // Botones de acción inferior
-    const btnContainer = this.scene.add.container(modalX + modalW / 2, modalY + modalH - 35);
-    const btnBg = this.scene.add.graphics();
-    btnBg.fillStyle(result.isCorrect ? 0x059669 : 0x2563eb, 1);
-    btnBg.fillRoundedRect(-140, -18, 280, 36, 6);
+    // Botón de acción principal
+    const btnY = modalY + modalH - 35;
+    const btnW = 260;
+    const btnH = 38;
 
-    const btnLabel = this.scene.add.text(
-      0,
-      0,
-      result.isCorrect ? 'SIGUIENTE DESAFÍO ➔' : 'VOLVER A INTENTAR',
-      {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#ffffff',
-        fontStyle: 'bold'
-      }
-    ).setOrigin(0.5);
+    const actionBtnBg = this.track(
+      this.scene.add.graphics().setDepth(baseDepth + 4)
+    );
+    actionBtnBg.fillStyle(result.isCorrect ? 0x059669 : 0x2563eb, 1);
+    actionBtnBg.fillRoundedRect(modalX + modalW / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 6);
 
-    btnContainer.add([btnBg, btnLabel]);
-    btnContainer.setSize(280, 36);
-    btnContainer.setInteractive(new Phaser.Geom.Rectangle(-140, -18, 280, 36), Phaser.Geom.Rectangle.Contains);
+    const actionBtnLabel = this.track(
+      this.scene.add.text(
+        modalX + modalW / 2,
+        btnY,
+        result.isCorrect ? 'SIGUIENTE DESAFÍO [Enter] ➔' : 'VOLVER A INTENTAR [Enter]',
+        {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }
+      )
+      .setOrigin(0.5)
+      .setDepth(baseDepth + 5)
+    );
 
-    btnContainer.on('pointerdown', () => {
+    const actionHit = this.track(
+      this.scene.add.zone(modalX + modalW / 2, btnY, btnW, btnH)
+        .setDepth(baseDepth + 6)
+        .setInteractive({ useHandCursor: true })
+    );
+
+    actionHit.on('pointerdown', () => {
       if (result.isCorrect) {
-        this.open(); // Abre el siguiente desafío
+        this.open();
       } else {
-        this.renderChallengeView(); // Permite reintentar con las pistas aprendidas
+        this.renderChallengeView();
       }
     });
 
-    // Botón Salir a Exploración
-    const exitBtn = this.scene.add.text(modalX + modalW - 120, modalY + modalH - 35, '[ Explorar ]', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#94a3b8'
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    // Botón Cerrar e ir a Explorar
+    const exitBtn = this.track(
+      this.scene.add.text(modalX + modalW - 100, btnY, '[ Salir / Esc ]', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#94a3b8'
+      })
+      .setOrigin(0.5)
+      .setDepth(baseDepth + 5)
+      .setInteractive({ useHandCursor: true })
+    );
 
     exitBtn.on('pointerdown', () => this.close());
-
-    this.container.add([
-      backdrop,
-      modalBg,
-      headerBg,
-      titleText,
-      statusLabel,
-      explBox,
-      conceptBox,
-      strategyBox,
-      btnContainer,
-      exitBtn
-    ]);
   }
 
   close() {
     this.isOpen = false;
-    this.container.setVisible(false);
-    this.scene.cameras.main.setAlpha(1.0);
+    this.currentView = null;
+    this.clearElements();
     if (this.player) this.player.unfreeze();
   }
 }

@@ -3,7 +3,7 @@ import { COMPETENCY_IDS, COMPETENCY_METADATA, sessionState } from '../../core/se
 
 /**
  * Escena del Selector de Competencias de NEUROQUEST.
- * Permite al jugador elegir libremente entre las 4 rutas curriculares:
+ * Permite al jugador elegir e ingresar libremente a cualquiera de las 4 rutas curriculares:
  * L  -> Pensamiento Lógico y Matemático (Mundo 01: Núcleo de Lógica)
  * CM -> Pensamiento Computacional y Programación (Mundo 02: Circuitos Mentales)
  * AC -> Comprensión Lectora (Mundo 03: Archivo del Conocimiento)
@@ -17,6 +17,7 @@ export class SelectCompetencyScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
     this.selectedCompetencyId = sessionState.getActiveCompetency();
+    this.isTransitioning = false;
 
     // Fondo cibernético
     this.createBackground(width, height);
@@ -24,17 +25,17 @@ export class SelectCompetencyScene extends Phaser.Scene {
     // Cabecera
     this.createHeader(width);
 
-    // Contenedores y tarjetas de las 4 competencias
+    // Tarjetas interactivas de las 4 competencias
     this.createCompetencyCards(width, height);
 
     // Barra de confirmación inferior
     this.createBottomBar(width, height);
 
-    // Soporte para selección con teclado [1, 2, 3, 4] y [Enter]
+    // Soporte para selección directa con teclado [1, 2, 3, 4] y [Enter]
     this.setupKeyboardShortcuts();
 
     // Fade in
-    this.cameras.main.fadeIn(400, 10, 12, 22);
+    this.cameras.main.fadeIn(350, 10, 12, 22);
   }
 
   createBackground(width, height) {
@@ -55,7 +56,7 @@ export class SelectCompetencyScene extends Phaser.Scene {
     for (let i = 0; i < 40; i++) {
       const rx = Phaser.Math.Between(0, width);
       const ry = Phaser.Math.Between(0, height);
-      this.add.rectangle(rx, ry, 2, 2, 0x38bdf8, 0.3);
+      this.add.rectangle(rx, ry, 2, 2, 0x38bdf8, 0.35);
     }
   }
 
@@ -67,7 +68,7 @@ export class SelectCompetencyScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, 68, 'Elige libremente qué competencia aprender • Progreso e historial 100% independientes', {
+    this.add.text(width / 2, 68, 'Haz clic en una ruta para ingresar directamente • Progreso e historial 100% independientes', {
       fontFamily: 'monospace',
       fontSize: '13px',
       color: '#94a3b8'
@@ -166,11 +167,17 @@ export class SelectCompetencyScene extends Phaser.Scene {
         });
       });
 
-      // Indicador de tecla de acceso rápido
-      const shortcutText = this.add.text(0, cardHeight / 2 - 24, `[ Tecla ${idx + 1} ]`, {
+      // Botón directo "ENTRAR [Tecla N]"
+      const enterBtnBg = this.add.graphics();
+      enterBtnBg.fillStyle(meta.badgeBg, 1);
+      enterBtnBg.fillRoundedRect(-70, cardHeight / 2 - 40, 140, 28, 6);
+      enterBtnBg.lineStyle(1, meta.primaryColor, 1);
+      enterBtnBg.strokeRoundedRect(-70, cardHeight / 2 - 40, 140, 28, 6);
+
+      const enterBtnText = this.add.text(0, cardHeight / 2 - 26, `ENTRAR [${idx + 1}] ➔`, {
         fontFamily: 'monospace',
         fontSize: '11px',
-        color: meta.primaryColorHex,
+        color: '#ffffff',
         fontStyle: 'bold'
       }).setOrigin(0.5);
 
@@ -183,7 +190,8 @@ export class SelectCompetencyScene extends Phaser.Scene {
         divider,
         skillsTitle,
         ...skillItems,
-        shortcutText
+        enterBtnBg,
+        enterBtnText
       ]);
 
       // Interactividad con ratón
@@ -193,7 +201,7 @@ export class SelectCompetencyScene extends Phaser.Scene {
       );
 
       container.on('pointerover', () => {
-        this.drawCardBackground(bg, cardWidth, cardHeight, meta, meta.id === this.selectedCompetencyId, true);
+        this.drawCardBackground(bg, cardWidth, cardHeight, meta, true, true);
         this.tweens.add({
           targets: container,
           y: cardY - 6,
@@ -214,8 +222,9 @@ export class SelectCompetencyScene extends Phaser.Scene {
         });
       });
 
+      // Al hacer clic en la tarjeta: selecciona e ingresa directamente al mundo
       container.on('pointerdown', () => {
-        this.selectCompetency(meta.id);
+        this.enterSelectedWorld(meta.id);
       });
 
       this.cards.push({ container, bg, meta, cardWidth, cardHeight });
@@ -228,101 +237,56 @@ export class SelectCompetencyScene extends Phaser.Scene {
     const halfW = w / 2;
     const halfH = h / 2;
 
-    // Fondo
     const bgColor = isSelected ? 0x161e33 : (isHover ? 0x131a2b : 0x0f1422);
     gfx.fillStyle(bgColor, 0.95);
     gfx.fillRoundedRect(-halfW, -halfH, w, h, 10);
 
-    // Borde
-    if (isSelected) {
-      gfx.lineStyle(3, meta.primaryColor, 1);
+    if (isSelected || isHover) {
+      gfx.lineStyle(2, meta.primaryColor, 1);
       gfx.strokeRoundedRect(-halfW, -halfH, w, h, 10);
-      // Brillo interno superior
-      gfx.fillStyle(meta.primaryColor, 0.15);
+      gfx.fillStyle(meta.primaryColor, 0.12);
       gfx.fillRoundedRect(-halfW + 3, -halfH + 3, w - 6, 60, 8);
-    } else if (isHover) {
-      gfx.lineStyle(2, meta.primaryColor, 0.7);
-      gfx.strokeRoundedRect(-halfW, -halfH, w, h, 10);
     } else {
       gfx.lineStyle(1, 0x334155, 0.8);
       gfx.strokeRoundedRect(-halfW, -halfH, w, h, 10);
     }
   }
 
-  selectCompetency(competencyId) {
-    this.selectedCompetencyId = competencyId;
-    sessionState.setActiveCompetency(competencyId);
-
-    // Redibujar tarjetas para reflejar la selección activa
-    this.cards.forEach(c => {
-      const isSelected = c.meta.id === this.selectedCompetencyId;
-      this.drawCardBackground(c.bg, c.cardWidth, c.cardHeight, c.meta, isSelected, false);
-    });
-
-    const meta = sessionState.getActiveCompetencyMeta();
-    this.selectedRouteLabel.setText(`Ruta Activa: [${meta.code}] ${meta.name} — ${meta.discipline}`);
-    this.selectedRouteLabel.setColor(meta.primaryColorHex);
-  }
-
   createBottomBar(width, height) {
     const meta = sessionState.getActiveCompetencyMeta();
 
-    // Texto de confirmación de ruta activa
     this.selectedRouteLabel = this.add.text(
       width / 2,
-      height - 72,
-      `Ruta Activa: [${meta.code}] ${meta.name} — ${meta.discipline}`,
+      height - 52,
+      `Ruta seleccionada: [${meta.code}] ${meta.name} • Presiona [1, 2, 3, 4] o haz clic en cualquier tarjeta`,
       {
         fontFamily: 'monospace',
-        fontSize: '13px',
+        fontSize: '12px',
         color: meta.primaryColorHex,
         fontStyle: 'bold'
       }
     ).setOrigin(0.5);
-
-    // Botón principal de entrada al mundo
-    const btnContainer = this.add.container(width / 2, height - 34);
-    const btnBg = this.add.image(0, 0, 'btn_primary').setInteractive({ useHandCursor: true });
-    btnBg.setScale(1.2, 0.85);
-
-    const btnText = this.add.text(0, 0, 'INGRESAR AL MUNDO  ➔', {
-      fontFamily: 'monospace',
-      fontSize: '15px',
-      color: '#ffffff',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    btnContainer.add([btnBg, btnText]);
-
-    btnBg.on('pointerover', () => {
-      btnBg.setTint(0x60a5fa);
-      btnContainer.setScale(1.05);
-    });
-
-    btnBg.on('pointerout', () => {
-      btnBg.clearTint();
-      btnContainer.setScale(1.0);
-    });
-
-    btnBg.on('pointerdown', () => {
-      btnContainer.setScale(0.96);
-      this.enterSelectedWorld();
-    });
   }
 
   setupKeyboardShortcuts() {
-    this.input.keyboard.on('keydown-ONE', () => this.selectCompetency(COMPETENCY_IDS.LOGIC_MATH));
-    this.input.keyboard.on('keydown-TWO', () => this.selectCompetency(COMPETENCY_IDS.COMPUTATIONAL_THINKING));
-    this.input.keyboard.on('keydown-THREE', () => this.selectCompetency(COMPETENCY_IDS.READING_COMPREHENSION));
-    this.input.keyboard.on('keydown-FOUR', () => this.selectCompetency(COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY));
-    this.input.keyboard.on('keydown-ENTER', () => this.enterSelectedWorld());
+    this.input.keyboard.on('keydown-ONE', () => this.enterSelectedWorld(COMPETENCY_IDS.LOGIC_MATH));
+    this.input.keyboard.on('keydown-TWO', () => this.enterSelectedWorld(COMPETENCY_IDS.COMPUTATIONAL_THINKING));
+    this.input.keyboard.on('keydown-THREE', () => this.enterSelectedWorld(COMPETENCY_IDS.READING_COMPREHENSION));
+    this.input.keyboard.on('keydown-FOUR', () => this.enterSelectedWorld(COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY));
+    this.input.keyboard.on('keydown-ENTER', () => this.enterSelectedWorld(this.selectedCompetencyId));
   }
 
-  enterSelectedWorld() {
-    console.log(`[SelectCompetencyScene] Entrando al mundo de: ${this.selectedCompetencyId}`);
-    this.cameras.main.fadeOut(350, 10, 12, 22);
+  enterSelectedWorld(competencyId = null) {
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+
+    const targetId = competencyId || this.selectedCompetencyId;
+    sessionState.setActiveCompetency(targetId);
+    console.log(`[SelectCompetencyScene] Entrando al mundo de: ${targetId}`);
+
+    this.cameras.main.fadeOut(250, 10, 12, 22);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('WorldScene', { competencyId: this.selectedCompetencyId });
+      this.scene.start('WorldScene', { competencyId: targetId });
     });
   }
 }

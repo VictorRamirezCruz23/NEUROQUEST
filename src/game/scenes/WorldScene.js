@@ -7,7 +7,7 @@ import { ChallengeModal } from '../../ui/components/ChallengeModal.js';
 
 /**
  * Escena del Mundo Interactivo y Plataformas 2D de NEUROQUEST.
- * Carga el fondo de escenario pixel art oficial de la competencia activa:
+ * Carga el fondo oficial y adapta mecánicas para las 4 rutas:
  * L  -> bg_logic_math (Núcleo de Lógica)
  * CM -> bg_computational (Circuitos Mentales)
  * AC -> bg_reading (Archivo del Conocimiento)
@@ -23,6 +23,7 @@ export class WorldScene extends Phaser.Scene {
       sessionState.setActiveCompetency(data.competencyId);
     }
     this.meta = sessionState.getActiveCompetencyMeta();
+    this.isTransitioning = false;
     console.log(`[WorldScene] Inicializada para ${this.meta.name} [${this.meta.code}]`);
   }
 
@@ -40,7 +41,6 @@ export class WorldScene extends Phaser.Scene {
     this.createWorldGeometry(worldWidth, worldHeight);
 
     // 4. Instanciar jugador con su spritesheet
-    // Posicionar al jugador sobre el suelo metálico del escenario (Y = 380)
     this.player = new Player(this, 140, 380);
 
     // 5. Configurar colisiones físicas
@@ -52,9 +52,9 @@ export class WorldScene extends Phaser.Scene {
     // 7. Configurar cámara dinámica con seguimiento suave
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.fadeIn(400, 10, 12, 22);
+    this.cameras.main.fadeIn(350, 10, 12, 22);
 
-    // 8. Crear interfaz de usuario (HUD) superpuesta
+    // 8. Crear interfaz de usuario (HUD) superpuesta (objetos planos sin anidar)
     this.createHUD();
 
     // 9. Crear modal de desafíos educativos
@@ -67,32 +67,51 @@ export class WorldScene extends Phaser.Scene {
       this.virtualControls = new VirtualControls(this, this.player);
     }
 
-    // 11. Atajo de teclado para cambiar de ruta [M]
-    this.keyM = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    // 11. Escuchar eventos de interacción y cambio de disciplina
+    this.setupEventListeners();
+  }
 
-    // Escuchar interacción táctil desde controles virtuales
+  setupEventListeners() {
+    // Tecla M para abrir selector de competencias
+    this.input.keyboard.on('keydown-M', () => {
+      this.goToCompetencySelector();
+    });
+
+    // Eventos disparados por controles táctiles o HUD
     this.events.on('touch-interact', () => {
       this.handleTerminalInteraction();
+    });
+
+    this.events.on('touch-switch-route', () => {
+      this.goToCompetencySelector();
+    });
+
+    // Limpieza de eventos al cambiar de escena
+    this.events.once('shutdown', () => {
+      this.events.off('touch-interact');
+      this.events.off('touch-switch-route');
+      if (this.virtualControls) {
+        this.virtualControls.destroy();
+        this.virtualControls = null;
+      }
     });
   }
 
   createAtmosphere(worldWidth, worldHeight) {
-    // 1. Renderizar fondo oficial pixel art si está cargado
+    // Renderizar fondo oficial pixel art si está cargado en caché
     if (this.textures.exists(this.meta.bgKey)) {
-      // Repetir el panorama para cubrir el ancho de 2400 px
       const bg1 = this.add.image(0, 0, this.meta.bgKey).setOrigin(0, 0);
       bg1.setDisplaySize(1200, worldHeight);
 
       const bg2 = this.add.image(1200, 0, this.meta.bgKey).setOrigin(0, 0);
       bg2.setDisplaySize(1200, worldHeight);
     } else {
-      // Respaldo de gradiente oscuro
       const bgGfx = this.add.graphics();
       bgGfx.fillStyle(0x070912, 1);
       bgGfx.fillRect(0, 0, worldWidth, worldHeight);
     }
 
-    // 2. Partículas ambientales tintadas con el color de la competencia activa
+    // Partículas ambientales tintadas con el color de la competencia activa
     for (let i = 0; i < 90; i++) {
       const px = Phaser.Math.Between(0, worldWidth);
       const py = Phaser.Math.Between(0, worldHeight - 120);
@@ -115,12 +134,11 @@ export class WorldScene extends Phaser.Scene {
   createWorldGeometry(worldWidth, worldHeight) {
     this.platforms = this.physics.add.staticGroup();
 
-    // Suelo sólido continuo alineado exactamente con la línea de suelo del arte (Y = 430 px)
+    // Suelo sólido continuo alineado con el arte ilustrado (Y = 430 px)
     const groundY = 430;
     for (let x = 0; x < worldWidth; x += 32) {
-      // Baldosa con colisión superior
       const tile = this.platforms.create(x + 16, groundY + 16, 'tile_ground');
-      tile.setVisible(false); // Invisible para dejar ver el suelo ilustrado del fondo
+      tile.setVisible(false);
       tile.refreshBody();
     }
 
@@ -154,7 +172,6 @@ export class WorldScene extends Phaser.Scene {
     const t2 = this.terminals.create(1780, 188, 'terminal_device');
     t2.refreshBody();
 
-    // Efecto de pulso de luz holográfico
     [t1, t2].forEach(terminal => {
       this.tweens.add({
         targets: terminal,
@@ -166,7 +183,7 @@ export class WorldScene extends Phaser.Scene {
       });
     });
 
-    // Texto flotante de interacción
+    // Texto flotante de interacción (en espacio de mundo sobre la terminal)
     this.interactionPrompt = this.add.text(0, 0, '[E] Acceder a Terminal', {
       fontFamily: 'monospace',
       fontSize: '13px',
@@ -175,97 +192,92 @@ export class WorldScene extends Phaser.Scene {
       padding: { x: 8, y: 4 },
       stroke: this.meta.primaryColorHex,
       strokeThickness: 1
-    }).setOrigin(0.5).setVisible(false);
+    }).setOrigin(0.5).setDepth(500).setVisible(false);
 
     this.keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
   }
 
   createHUD() {
-    const hudContainer = this.add.container(0, 0);
-    hudContainer.setScrollFactor(0);
-    hudContainer.setDepth(1500);
+    const baseDepth = 1500;
+    const { width, height } = this.scale;
 
-    // Barra superior izquierda: Identidad de la competencia activa
-    const topBar = this.add.graphics();
+    // 1. Barra superior izquierda de identidad
+    const topBar = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
     topBar.fillStyle(0x0f172a, 0.92);
-    topBar.fillRoundedRect(16, 14, 460, 48, 6);
+    topBar.fillRoundedRect(16, 14, 440, 48, 6);
     topBar.lineStyle(2, this.meta.primaryColor, 0.85);
-    topBar.strokeRoundedRect(16, 14, 460, 48, 6);
+    topBar.strokeRoundedRect(16, 14, 440, 48, 6);
 
-    // Badge con el código (L, CM, AC, E)
-    const badge = this.add.graphics();
+    const badge = this.add.graphics().setScrollFactor(0).setDepth(baseDepth + 1);
     badge.fillStyle(this.meta.badgeBg, 1);
     badge.fillRoundedRect(24, 20, 36, 36, 6);
     badge.lineStyle(1, this.meta.primaryColor, 1);
     badge.strokeRoundedRect(24, 20, 36, 36, 6);
 
-    const badgeLabel = this.add.text(42, 38, this.meta.code, {
+    this.add.text(42, 38, this.meta.code, {
       fontFamily: 'monospace',
       fontSize: '17px',
       color: '#ffffff',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
 
-    // Textos de ruta activa
-    const worldNameText = this.add.text(68, 20, `MUNDO ${this.meta.worldNumber}: ${this.meta.name.toUpperCase()}`, {
+    this.add.text(68, 20, `MUNDO ${this.meta.worldNumber}: ${this.meta.name.toUpperCase()}`, {
       fontFamily: 'monospace',
       fontSize: '12px',
       color: this.meta.primaryColorHex,
       fontStyle: 'bold'
-    });
+    }).setScrollFactor(0).setDepth(baseDepth + 2);
 
-    const disciplineText = this.add.text(68, 38, `${this.meta.discipline} • Nivel 1`, {
+    this.add.text(68, 38, `${this.meta.discipline} • Nivel 1`, {
       fontFamily: 'monospace',
       fontSize: '10px',
       color: '#94a3b8'
-    });
+    }).setScrollFactor(0).setDepth(baseDepth + 2);
 
-    // Botón superior derecho: "CAMBIAR RUTA [M]"
-    const changeBtnContainer = this.add.container(this.scale.width - 120, 38);
-    const changeBtnBg = this.add.graphics();
-    changeBtnBg.fillStyle(0x1e293b, 0.9);
-    changeBtnBg.fillRoundedRect(-90, -18, 180, 36, 6);
-    changeBtnBg.lineStyle(1, 0x64748b, 0.8);
-    changeBtnBg.strokeRoundedRect(-90, -18, 180, 36, 6);
+    // 2. Botón superior derecho "CAMBIAR RUTA [M]" (DIRECTO EN PANTALLA, NO ANIDADO)
+    const btnX = width - 110;
+    const btnY = 38;
+    const btnW = 180;
+    const btnH = 36;
 
-    const changeBtnText = this.add.text(0, 0, 'CAMBIAR RUTA [M]', {
+    const changeBg = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
+    const drawChangeBtn = (hover = false) => {
+      changeBg.clear();
+      changeBg.fillStyle(hover ? 0x2563eb : 0x1e293b, 0.95);
+      changeBg.fillRoundedRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, 6);
+      changeBg.lineStyle(hover ? 2 : 1, hover ? this.meta.primaryColor : 0x64748b, 1);
+      changeBg.strokeRoundedRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, 6);
+    };
+    drawChangeBtn(false);
+
+    this.add.text(btnX, btnY, 'CAMBIAR RUTA [M]', {
       fontFamily: 'monospace',
       fontSize: '11px',
-      color: '#e2e8f0',
+      color: '#ffffff',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 1);
 
-    changeBtnContainer.add([changeBtnBg, changeBtnText]);
-    changeBtnContainer.setSize(180, 36);
-    changeBtnContainer.setInteractive(
-      new Phaser.Geom.Rectangle(-90, -18, 180, 36),
-      Phaser.Geom.Rectangle.Contains
-    );
+    const changeHit = this.add.zone(btnX, btnY, btnW, btnH)
+      .setScrollFactor(0)
+      .setDepth(baseDepth + 3)
+      .setInteractive({ useHandCursor: true });
 
-    changeBtnContainer.on('pointerover', () => {
-      changeBtnBg.lineStyle(2, this.meta.primaryColor, 1);
-      changeBtnBg.strokeRoundedRect(-90, -18, 180, 36, 6);
-      changeBtnContainer.setScale(1.04);
-    });
+    changeHit.on('pointerover', () => drawChangeBtn(true));
+    changeHit.on('pointerout', () => drawChangeBtn(false));
+    changeHit.on('pointerdown', () => this.goToCompetencySelector());
 
-    changeBtnContainer.on('pointerout', () => {
-      changeBtnBg.lineStyle(1, 0x64748b, 0.8);
-      changeBtnBg.strokeRoundedRect(-90, -18, 180, 36, 6);
-      changeBtnContainer.setScale(1.0);
-    });
-
-    changeBtnContainer.on('pointerdown', () => {
-      this.goToCompetencySelector();
-    });
-
-    // Botón para alternar controles táctiles en pantalla (disponible para pruebas)
-    const toggleTouchBtn = this.add.text(this.scale.width - 240, 38, this.isMobile ? '📱 Táctil' : '🖥️ PC', {
+    // 3. Botón para alternar controles táctiles en pantalla
+    const toggleTouchBtn = this.add.text(width - 240, 38, this.isMobile ? '📱 Táctil' : '🖥️ PC', {
       fontFamily: 'monospace',
       fontSize: '11px',
       color: '#38bdf8',
       backgroundColor: 'rgba(15, 23, 42, 0.85)',
       padding: { x: 8, y: 6 }
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 1)
+    .setInteractive({ useHandCursor: true });
 
     toggleTouchBtn.on('pointerdown', () => {
       if (this.virtualControls) {
@@ -278,10 +290,10 @@ export class WorldScene extends Phaser.Scene {
       }
     });
 
-    // Panel de controles inferior
-    const bottomControls = this.add.text(
-      this.scale.width / 2,
-      this.scale.height - 18,
+    // 4. Panel de controles inferior
+    this.add.text(
+      width / 2,
+      height - 18,
       'Controles: [A/D] Correr • [W/Espacio] Saltar • [J] Acción • [E] Terminal • [M] Cambiar Ruta',
       {
         fontFamily: 'monospace',
@@ -290,22 +302,19 @@ export class WorldScene extends Phaser.Scene {
         backgroundColor: 'rgba(15, 23, 42, 0.85)',
         padding: { x: 10, y: 3 }
       }
-    ).setOrigin(0.5).setScrollFactor(0);
-
-    hudContainer.add([
-      topBar,
-      badge,
-      badgeLabel,
-      worldNameText,
-      disciplineText,
-      changeBtnContainer,
-      toggleTouchBtn,
-      bottomControls
-    ]);
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth);
   }
 
   goToCompetencySelector() {
-    this.cameras.main.fadeOut(350, 10, 12, 22);
+    if (this.isTransitioning) return;
+    this.isTransitioning = true;
+
+    if (this.challengeModal && this.challengeModal.isOpen) {
+      this.challengeModal.close();
+    }
+
+    console.log('[WorldScene] Cambiando a SelectCompetencyScene...');
+    this.cameras.main.fadeOut(250, 10, 12, 22);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start('SelectCompetencyScene');
     });
@@ -318,18 +327,17 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    // Si el modal está abierto, congelar jugador
+    if (this.challengeModal && this.challengeModal.isOpen) {
+      return;
+    }
+
     if (this.player) {
       this.player.update(time, delta);
     }
 
     if (this.virtualControls) {
       this.virtualControls.update();
-    }
-
-    // Tecla M para abrir selector de competencias en cualquier momento
-    if (Phaser.Input.Keyboard.JustDown(this.keyM)) {
-      this.goToCompetencySelector();
-      return;
     }
 
     // Verificar proximidad a terminales interactivas
