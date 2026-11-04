@@ -44,21 +44,21 @@ export class WelcomeScene extends Phaser.Scene {
       color: '#cbd5e1'
     }).setOrigin(0.5);
 
-    // Sprite de previsualización del avatar
-    const heroPreview = this.add.image(width / 2, height * 0.54, 'hero_idle');
-    heroPreview.setScale(3); // Escala pixel art x3
+    // Sprite de previsualización del avatar oficial (del spritesheet player_sheet)
+    const heroPreview = this.add.image(width / 2, height * 0.53, 'player', 0);
+    heroPreview.setScale(0.38);
 
     this.tweens.add({
       targets: heroPreview,
-      scaleY: 2.8,
-      duration: 600,
+      scaleY: 0.36,
+      duration: 650,
       yoyo: true,
       repeat: -1,
       ease: 'Quad.easeInOut'
     });
 
     // Botón Iniciar Aventura
-    const btnContainer = this.add.container(width / 2, height * 0.72);
+    const btnContainer = this.add.container(width / 2, height * 0.74);
     const btnBg = this.add.image(0, 0, 'btn_primary').setInteractive({ useHandCursor: true });
     const btnLabel = this.add.text(0, 0, 'INICIAR AVENTURA', {
       fontFamily: 'monospace',
@@ -82,12 +82,15 @@ export class WelcomeScene extends Phaser.Scene {
 
     btnBg.on('pointerdown', () => {
       btnContainer.setScale(0.96);
-      this.cameras.main.flash(300, 56, 189, 248);
-      console.log('[WelcomeScene] Iniciar aventura presionado. Listo para Selector de Competencias.');
+      this.cameras.main.fadeOut(400, 10, 12, 22);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.start('WorldScene');
+      });
+      console.log('[WelcomeScene] Iniciar aventura presionado. Transicionando a WorldScene.');
     });
 
     // Pie de página de estado del sistema
-    this.add.text(width / 2, height - 25, 'v0.1.0 • Incremento 1: Motor Vite + Phaser 3 Configurado', {
+    this.add.text(width / 2, height - 25, 'v0.2.0 • Incremento 2: Personaje y Mundo Interactivo 2D', {
       fontFamily: 'monospace',
       fontSize: '12px',
       color: '#64748b'

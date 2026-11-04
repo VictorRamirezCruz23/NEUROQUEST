@@ -6,6 +6,20 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.2.0] - 2026-11-04
+
+### Añadido
+- **Incremento 2 (Personaje y Mundo Interactivo):**
+  - Procesamiento y vectorización de sprites de `player.jpg` generando `public/assets/sprites/player_sheet.png` (cuadrícula uniforme 6x4 de 200x330 px con fondo transparente y filtrado morfológico de artefactos de texto).
+  - Implementación de la entidad [`Player.js`](src/game/entities/Player.js) como Sprite de Arcade Physics con controles cruzados (WASD + Flechas + Espacio + J), gestión de estados (`IDLE`, `WALK`, `JUMP`, `FALL`, `PUNCH`) y flip horizontal.
+  - Implementación de [`WorldScene.js`](src/game/scenes/WorldScene.js): escenario de plataformas laterales en NEUROCORE (2400x540 px) con suelo colisionable, plataformas elevadas, partículas ambientales y cámara dinámica con seguimiento suave (`startFollow`).
+  - Terminales interactivas (`terminal_device`) con detección de proximidad y prompt contextual (`[E] Interactuar`).
+  - Mini HUD superpuesto fijo en pantalla con avatar y controles.
+  - Conexión de transición fluida de escenas entre `WelcomeScene` y `WorldScene`.
+  - Actualización de `ASSET_MANIFEST.md` y `gameConfig.js`.
+
+---
+
 ## [0.1.0] - 2026-11-04
 
 ### Añadido
