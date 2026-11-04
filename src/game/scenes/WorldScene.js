@@ -4,6 +4,9 @@ import { sessionState } from '../../core/sessionState.js';
 import { DeviceDetector } from '../../utils/deviceDetector.js';
 import { VirtualControls } from '../../ui/components/VirtualControls.js';
 import { ChallengeModal } from '../../ui/components/ChallengeModal.js';
+import { educationEngine } from '../../education/engines/EducationEngine.js';
+import { DiagnosticManager } from '../../education/assessments/DiagnosticManager.js';
+import { DIFFICULTY_LABELS } from '../../education/adaptive/AdaptiveEngine.js';
 
 /**
  * Escena del Mundo Interactivo y Plataformas 2D de NEUROQUEST.
@@ -228,17 +231,19 @@ export class WorldScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setScrollFactor(0).setDepth(baseDepth + 2);
 
-    this.add.text(68, 38, `${this.meta.discipline} • Nivel 1`, {
+    this.levelText = this.add.text(68, 38, `${this.meta.discipline} • Calibrando...`, {
       fontFamily: 'monospace',
       fontSize: '10px',
       color: '#94a3b8'
     }).setScrollFactor(0).setDepth(baseDepth + 2);
 
+    this.updateHUDLevel();
+
     // 2. Botón superior derecho "CAMBIAR RUTA [M]" (DIRECTO EN PANTALLA, NO ANIDADO)
-    const btnX = width - 110;
+    const btnX = width - 95;
     const btnY = 38;
-    const btnW = 180;
-    const btnH = 36;
+    const btnW = 160;
+    const btnH = 34;
 
     const changeBg = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
     const drawChangeBtn = (hover = false) => {
@@ -266,8 +271,8 @@ export class WorldScene extends Phaser.Scene {
     changeHit.on('pointerout', () => drawChangeBtn(false));
     changeHit.on('pointerdown', () => this.goToCompetencySelector());
 
-    // 3. Botón para alternar controles táctiles en pantalla
-    const toggleTouchBtn = this.add.text(width - 240, 38, this.isMobile ? '📱 Táctil' : '🖥️ PC', {
+    // 3. Botón para alternar controles táctiles en pantalla (separado con margen seguro)
+    const toggleTouchBtn = this.add.text(width - 235, 38, this.isMobile ? '📱 Táctil' : '🖥️ PC', {
       fontFamily: 'monospace',
       fontSize: '11px',
       color: '#38bdf8',
@@ -303,6 +308,23 @@ export class WorldScene extends Phaser.Scene {
         padding: { x: 10, y: 3 }
       }
     ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth);
+  }
+
+  updateHUDLevel() {
+    if (!this.levelText) return;
+    const compId = sessionState.getActiveCompetencyId();
+    if (DiagnosticManager.needsDiagnostic(compId)) {
+      const diagStatus = DiagnosticManager.getDiagnosticStatus(compId);
+      const step = diagStatus ? diagStatus.step + 1 : 1;
+      const total = diagStatus ? diagStatus.total : 3;
+      this.levelText.setText(`${this.meta.discipline} • DIAGNÓSTICO [${step}/${total}]`);
+      this.levelText.setColor('#fbbf24');
+    } else {
+      const lvl = educationEngine.getCurrentLevel(compId);
+      const label = DIFFICULTY_LABELS[lvl] || `Nivel ${lvl}`;
+      this.levelText.setText(`${this.meta.discipline} • ${label}`);
+      this.levelText.setColor('#38bdf8');
+    }
   }
 
   goToCompetencySelector() {

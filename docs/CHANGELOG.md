@@ -6,6 +6,25 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.5.0] - 2026-11-04
+
+### Añadido
+- **Incremento 5 (Diagnóstico Inicial y Algoritmo de Dificultad Adaptativa):**
+  - Implementación de [`AdaptiveEngine.js`](src/education/adaptive/AdaptiveEngine.js):
+    - Algoritmo determinista, explicable y auditable de adaptación basado en la tupla $V = (P, I, H, T, D_c, R_{hist})$ (precisión, intentos, pistas utilizadas, tiempo/consistencia, nivel actual e historial).
+    - Reglas de transición de dificultad explicables: `INCREASE` (subir nivel ante dominio autónomo consistente), `MAINTAIN` (consolidación), `DECREASE` (ajuste a la baja ante bloqueos reiterados) y `REINFORCE` (refuerzo guiado antes de alterar el nivel).
+  - Implementación de [`DiagnosticManager.js`](src/education/assessments/DiagnosticManager.js):
+    - Protocolo de calibración diagnóstica inicial de 3 fases por competencia para determinar el punto de partida real del estudiante (Principiante vs. Intermedio) sin penalizaciones arbitrarias.
+  - Expansión de [`ChallengeRepository.js`](src/education/repositories/ChallengeRepository.js):
+    - Banco multinivel estructurado con desafíos diagnósticos y desafíos clasificados por dificultad (Nivel 1: Principiante, Nivel 2: Intermedio, Nivel 3: Avanzado) para las 4 competencias del juego.
+  - Rediseño ergonómico no superpuesto de [`ChallengeModal.js`](src/ui/components/ChallengeModal.js):
+    - Sistema de coordenadas verticales con cotas fijas sin anidación de containers para garantizar que ningún texto, botón o banner se encime.
+    - Soporte completo de teclado ([A, B, C, D], [1, 2, 3, 4], [H], [Enter], [Esc]) y toques móviles.
+  - Sincronización en tiempo real del HUD en [`WorldScene.js`](src/game/scenes/WorldScene.js):
+    - Indicador de calibración diagnóstica y nivel adaptativo dinámico (`DIAGNÓSTICO [X/3]` o `NIVEL X: [NIVEL]`).
+
+---
+
 ## [0.4.0] - 2026-11-04
 
 ### Añadido

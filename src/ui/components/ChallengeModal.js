@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { sessionState } from '../../core/sessionState.js';
+import { DIFFICULTY_LABELS } from '../../education/adaptive/AdaptiveEngine.js';
 
 /**
- * ChallengeModal.js — Interfaz interactiva de terminal educativa.
- * Arquitectura plana (flat screen-space) sin contenedores anidados para garantizar
- * que el hit-testing táctil y de ratón funcione con 100% de precisión sin importar el scroll de la cámara.
+ * ChallengeModal.js — Interfaz interactiva de terminal educativa y evaluación adaptativa.
+ * Diseño en capas planas (flat screen-space) con espaciado vertical riguroso para evitar
+ * cualquier solapamiento o encimamiento visual entre elementos.
  */
 export class ChallengeModal {
   /**
@@ -19,23 +20,10 @@ export class ChallengeModal {
     this.currentChallenge = null;
     this.elements = [];
 
-    // Registrar atajos de teclado globales del modal
     this.setupKeyboardListeners();
   }
 
   setupKeyboardListeners() {
-    this.keyA = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-    this.keyB = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
-    this.keyC = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
-    this.keyD = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
-    this.key1 = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
-    this.key2 = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
-    this.key3 = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
-    this.key4 = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR);
-    this.keyH = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.H);
-    this.keyEnter = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
-    this.keyEsc = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-
     this.scene.input.keyboard.on('keydown', (event) => {
       if (!this.isOpen) return;
 
@@ -62,9 +50,6 @@ export class ChallengeModal {
     });
   }
 
-  /**
-   * Abre la terminal con un desafío de la competencia activa.
-   */
   open() {
     this.currentChallenge = educationEngine.getNextChallenge();
     if (!this.currentChallenge) {
@@ -98,42 +83,40 @@ export class ChallengeModal {
 
     const { width, height } = this.scene.scale;
     const meta = sessionState.getActiveCompetencyMeta();
+    const currentLevel = educationEngine.getCurrentLevel();
     const baseDepth = 2000;
 
-    // 1. Telón oscuro de fondo
-    const backdrop = this.track(
+    // Telón de fondo
+    this.track(
       this.scene.add.rectangle(0, 0, width, height, 0x05070f, 0.82)
         .setOrigin(0)
         .setDepth(baseDepth)
         .setInteractive()
     );
 
-    // 2. Ventana modal
-    const modalW = Math.min(840, width - 40);
-    const modalH = Math.min(480, height - 30);
+    // Dimensiones y posición del modal central
+    const modalW = 820;
+    const modalH = 480;
     const modalX = (width - modalW) / 2;
     const modalY = (height - modalH) / 2;
 
-    const modalBg = this.track(
-      this.scene.add.graphics().setDepth(baseDepth + 1)
-    );
+    // Fondo del modal
+    const modalBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 1));
     modalBg.fillStyle(0x0f172a, 0.98);
-    modalBg.fillRoundedRect(modalX, modalY, modalW, modalH, 12);
+    modalBg.fillRoundedRect(modalX, modalY, modalW, modalH, 10);
     modalBg.lineStyle(2, meta.primaryColor, 1);
-    modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 12);
+    modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 10);
 
-    // 3. Barra de cabecera
-    const headerBg = this.track(
-      this.scene.add.graphics().setDepth(baseDepth + 2)
-    );
+    // 1. Cabecera (Y: 0 a 42 px)
+    const headerBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
     headerBg.fillStyle(meta.badgeBg, 0.95);
-    headerBg.fillRoundedRect(modalX, modalY, modalW, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+    headerBg.fillRoundedRect(modalX, modalY, modalW, 42, { tl: 10, tr: 10, bl: 0, br: 0 });
 
     this.track(
       this.scene.add.text(
-        modalX + 20,
+        modalX + 18,
         modalY + 13,
-        `[ ${meta.code} ] TERMINAL PEDAGÓGICA • ${meta.name.toUpperCase()} (MUNDO ${meta.worldNumber})`,
+        `[ ${meta.code} ] TERMINAL EDUCATIVA • ${meta.name.toUpperCase()} (MUNDO ${meta.worldNumber})`,
         {
           fontFamily: 'monospace',
           fontSize: '13px',
@@ -145,7 +128,7 @@ export class ChallengeModal {
 
     // Botón Cerrar (X)
     const closeBtn = this.track(
-      this.scene.add.text(modalX + modalW - 28, modalY + 12, '✕', {
+      this.scene.add.text(modalX + modalW - 25, modalY + 12, '✕', {
         fontFamily: 'monospace',
         fontSize: '18px',
         color: '#cbd5e1'
@@ -156,107 +139,121 @@ export class ChallengeModal {
     );
     closeBtn.on('pointerdown', () => this.close());
 
-    // 4. Habilidad pedagógica y objetivo
+    // 2. Banner de Diagnóstico / Nivel Adaptativo (Y: modalY + 50 px)
+    const isDiag = this.currentChallenge.isDiagnostic;
+    const levelLabel = DIFFICULTY_LABELS[currentLevel] || `Nivel ${currentLevel}`;
+
+    const bannerBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
+    bannerBg.fillStyle(isDiag ? 0x78350f : 0x1e293b, 0.85);
+    bannerBg.fillRoundedRect(modalX + 18, modalY + 48, modalW - 36, 22, 4);
+
+    const bannerText = isDiag
+      ? '★ EVALUACIÓN DIAGNÓSTICA INICIAL • Identificación de conocimientos previos sin penalización'
+      : `★ HABILIDAD: ${this.currentChallenge.skillName} • ${levelLabel.toUpperCase()}`;
+
     this.track(
       this.scene.add.text(
-        modalX + 24,
-        modalY + 54,
-        `Habilidad: ${this.currentChallenge.skillName}  |  Dificultad: Nivel ${this.currentChallenge.difficulty}`,
+        modalX + 26,
+        modalY + 52,
+        bannerText,
         {
           fontFamily: 'monospace',
-          fontSize: '11px',
-          color: meta.primaryColorHex,
+          fontSize: '10px',
+          color: isDiag ? '#fbbf24' : meta.primaryColorHex,
           fontStyle: 'bold'
         }
       ).setDepth(baseDepth + 3)
     );
 
-    // 5. Contexto del problema
+    // 3. Contexto Narrativo (Y: modalY + 76 px)
     this.track(
       this.scene.add.text(
-        modalX + 24,
-        modalY + 74,
+        modalX + 22,
+        modalY + 76,
         `Contexto: ${this.currentChallenge.context}`,
         {
           fontFamily: 'Segoe UI',
-          fontSize: '12px',
+          fontSize: '11px',
           color: '#94a3b8',
           fontStyle: 'italic',
-          wordWrap: { width: modalW - 48 }
+          wordWrap: { width: modalW - 44 }
         }
       ).setDepth(baseDepth + 3)
     );
 
-    // 6. Enunciado del desafío
+    // 4. Enunciado del Desafío (Y: modalY + 104 px)
     this.track(
       this.scene.add.text(
-        modalX + 24,
-        modalY + 112,
+        modalX + 22,
+        modalY + 104,
         this.currentChallenge.statement,
         {
           fontFamily: 'monospace',
-          fontSize: '13px',
+          fontSize: '12px',
           color: '#f8fafc',
-          wordWrap: { width: modalW - 48 }
+          lineSpacing: 3,
+          wordWrap: { width: modalW - 44 }
         }
       ).setDepth(baseDepth + 3)
     );
 
-    // 7. Opciones de respuesta interactivas (sin contenedores anidados para garantizar hit-test impecable)
-    const startOptY = modalY + 195;
-    const optW = modalW - 48;
-    const optH = 40;
+    // 5. Opciones de Respuesta (Y: modalY + 190 px, sin anidamiento ni solapamiento)
+    const startOptY = modalY + 190;
+    const optW = modalW - 44;
+    const optH = 38;
+    const optGap = 46;
 
     this.currentChallenge.options.forEach((optText, idx) => {
-      const optY = startOptY + (idx * 48);
+      const optY = startOptY + (idx * optGap);
       const letter = String.fromCharCode(65 + idx);
 
-      const btnBg = this.track(
-        this.scene.add.graphics().setDepth(baseDepth + 4)
-      );
-
+      const btnBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 4));
       const drawOpt = (hover = false) => {
         btnBg.clear();
         btnBg.fillStyle(hover ? 0x1d4ed8 : 0x1e293b, 0.95);
-        btnBg.fillRoundedRect(modalX + 24, optY, optW, optH, 6);
+        btnBg.fillRoundedRect(modalX + 22, optY, optW, optH, 6);
         btnBg.lineStyle(hover ? 2 : 1, hover ? meta.primaryColor : 0x475569, 1);
-        btnBg.strokeRoundedRect(modalX + 24, optY, optW, optH, 6);
+        btnBg.strokeRoundedRect(modalX + 22, optY, optW, optH, 6);
       };
       drawOpt(false);
 
-      const btnHitZone = this.track(
-        this.scene.add.zone(modalX + 24 + optW / 2, optY + optH / 2, optW, optH)
-          .setDepth(baseDepth + 6)
-          .setInteractive({ useHandCursor: true })
-      );
-
-      const label = this.track(
-        this.scene.add.text(modalX + 40, optY + optH / 2, `[${letter} / ${idx + 1}]  ${optText}`, {
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          color: '#f8fafc'
-        })
+      this.track(
+        this.scene.add.text(
+          modalX + 36,
+          optY + optH / 2,
+          `[${letter} / ${idx + 1}]  ${optText}`,
+          {
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            color: '#f8fafc'
+          }
+        )
         .setOrigin(0, 0.5)
         .setDepth(baseDepth + 5)
       );
 
-      btnHitZone.on('pointerover', () => drawOpt(true));
-      btnHitZone.on('pointerout', () => drawOpt(false));
-      btnHitZone.on('pointerdown', () => this.submitAnswer(idx));
+      const hitZone = this.track(
+        this.scene.add.zone(modalX + 22 + optW / 2, optY + optH / 2, optW, optH)
+          .setDepth(baseDepth + 6)
+          .setInteractive({ useHandCursor: true })
+      );
+
+      hitZone.on('pointerover', () => drawOpt(true));
+      hitZone.on('pointerout', () => drawOpt(false));
+      hitZone.on('pointerdown', () => this.submitAnswer(idx));
     });
 
-    // 8. Botón Solicitar Pista
-    const hintBtnY = modalY + modalH - 24;
-    const hintBg = this.track(
-      this.scene.add.graphics().setDepth(baseDepth + 4)
-    );
-    hintBg.fillStyle(0x1e293b, 0.95);
-    hintBg.fillRoundedRect(modalX + 24, hintBtnY - 16, 200, 32, 6);
-    hintBg.lineStyle(1, 0xf59e0b, 0.9);
-    hintBg.strokeRoundedRect(modalX + 24, hintBtnY - 16, 200, 32, 6);
+    // 6. Barra Inferior de Pistas y Atajos (Y: modalY + modalH - 25 px)
+    const footerY = modalY + modalH - 24;
 
-    const hintText = this.track(
-      this.scene.add.text(modalX + 124, hintBtnY, '💡 Pista [H]', {
+    const hintBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 4));
+    hintBg.fillStyle(0x1e293b, 0.95);
+    hintBg.fillRoundedRect(modalX + 22, footerY - 15, 170, 30, 6);
+    hintBg.lineStyle(1, 0xf59e0b, 0.85);
+    hintBg.strokeRoundedRect(modalX + 22, footerY - 15, 170, 30, 6);
+
+    this.track(
+      this.scene.add.text(modalX + 107, footerY, '💡 Pista [H]', {
         fontFamily: 'monospace',
         fontSize: '11px',
         color: '#fbbf24',
@@ -267,20 +264,23 @@ export class ChallengeModal {
     );
 
     const hintHit = this.track(
-      this.scene.add.zone(modalX + 124, hintBtnY, 200, 32)
+      this.scene.add.zone(modalX + 107, footerY, 170, 30)
         .setDepth(baseDepth + 6)
         .setInteractive({ useHandCursor: true })
     );
-
     hintHit.on('pointerdown', () => this.triggerHint());
 
-    // Indicador de teclas de acceso rápido
     this.track(
-      this.scene.add.text(modalX + modalW - 200, hintBtnY, 'Responde: [A,B,C,D / 1,2,3,4]', {
-        fontFamily: 'monospace',
-        fontSize: '10px',
-        color: '#64748b'
-      })
+      this.scene.add.text(
+        modalX + modalW - 200,
+        footerY,
+        'Responde: [A, B, C, D] o [1, 2, 3, 4]',
+        {
+          fontFamily: 'monospace',
+          fontSize: '10px',
+          color: '#64748b'
+        }
+      )
       .setOrigin(0.5)
       .setDepth(baseDepth + 5)
     );
@@ -290,19 +290,19 @@ export class ChallengeModal {
     const hint = educationEngine.requestHint(this.currentChallenge);
     if (hint) {
       const { width, height } = this.scene.scale;
-      const modalW = Math.min(840, width - 40);
-      const modalH = Math.min(480, height - 30);
+      const modalW = 820;
+      const modalH = 480;
       const modalX = (width - modalW) / 2;
       const modalY = (height - modalH) / 2;
 
       const toast = this.track(
-        this.scene.add.text(modalX + 24, modalY + modalH - 70, hint, {
+        this.scene.add.text(modalX + 22, modalY + modalH - 72, hint, {
           fontFamily: 'Segoe UI',
-          fontSize: '12px',
+          fontSize: '11px',
           color: '#fef08a',
           backgroundColor: 'rgba(30, 27, 75, 0.98)',
-          padding: { x: 12, y: 8 },
-          wordWrap: { width: modalW - 48 }
+          padding: { x: 12, y: 7 },
+          wordWrap: { width: modalW - 44 }
         }).setDepth(2010)
       );
 
@@ -316,6 +316,9 @@ export class ChallengeModal {
     if (!this.isOpen || this.currentView !== 'challenge') return;
     const result = educationEngine.evaluateAnswer(this.currentChallenge, optionIndex);
     this.lastResult = result;
+    if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
+      this.scene.updateHUDLevel();
+    }
     this.renderFeedbackView(result);
   }
 
@@ -324,39 +327,35 @@ export class ChallengeModal {
     this.currentView = 'feedback';
 
     const { width, height } = this.scene.scale;
-    const meta = sessionState.getActiveCompetencyMeta();
     const baseDepth = 2000;
 
-    const backdrop = this.track(
+    // Telón
+    this.track(
       this.scene.add.rectangle(0, 0, width, height, 0x05070f, 0.85)
         .setOrigin(0)
         .setDepth(baseDepth)
         .setInteractive()
     );
 
-    const modalW = Math.min(840, width - 40);
-    const modalH = Math.min(480, height - 30);
+    const modalW = 820;
+    const modalH = 480;
     const modalX = (width - modalW) / 2;
     const modalY = (height - modalH) / 2;
 
-    const modalBg = this.track(
-      this.scene.add.graphics().setDepth(baseDepth + 1)
-    );
+    const modalBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 1));
     modalBg.fillStyle(0x0f172a, 0.98);
-    modalBg.fillRoundedRect(modalX, modalY, modalW, modalH, 12);
+    modalBg.fillRoundedRect(modalX, modalY, modalW, modalH, 10);
     const borderColor = result.isCorrect ? 0x10b981 : 0xf59e0b;
     modalBg.lineStyle(2, borderColor, 1);
-    modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 12);
+    modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 10);
 
-    // Cabecera de retroalimentación
-    const headerBg = this.track(
-      this.scene.add.graphics().setDepth(baseDepth + 2)
-    );
+    // 1. Cabecera
+    const headerBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
     headerBg.fillStyle(result.isCorrect ? 0x065f46 : 0x78350f, 0.95);
-    headerBg.fillRoundedRect(modalX, modalY, modalW, 44, { tl: 12, tr: 12, bl: 0, br: 0 });
+    headerBg.fillRoundedRect(modalX, modalY, modalW, 42, { tl: 10, tr: 10, bl: 0, br: 0 });
 
     this.track(
-      this.scene.add.text(modalX + 20, modalY + 13, result.title, {
+      this.scene.add.text(modalX + 18, modalY + 13, result.title, {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#ffffff',
@@ -364,87 +363,162 @@ export class ChallengeModal {
       }).setDepth(baseDepth + 3)
     );
 
-    let contentY = modalY + 62;
+    let contentY = modalY + 54;
 
-    // Estado del intento
+    // 2. Estado de diagnóstico o acierto
+    if (result.isDiagnostic && result.diagnosticResult) {
+      const diagBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
+      diagBg.fillStyle(0x1e293b, 0.9);
+      diagBg.fillRoundedRect(modalX + 22, contentY, modalW - 44, 46, 6);
+      diagBg.lineStyle(1, 0x38bdf8, 0.8);
+      diagBg.strokeRoundedRect(modalX + 22, contentY, modalW - 44, 46, 6);
+
+      this.track(
+        this.scene.add.text(
+          modalX + 32,
+          contentY + 8,
+          `★ ${result.diagnosticResult.title}: Línea base asignada en ${DIFFICULTY_LABELS[result.diagnosticResult.baselineLevel]}`,
+          {
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: '#38bdf8',
+            fontStyle: 'bold'
+          }
+        ).setDepth(baseDepth + 3)
+      );
+
+      this.track(
+        this.scene.add.text(
+          modalX + 32,
+          contentY + 26,
+          result.diagnosticResult.summary,
+          {
+            fontFamily: 'Segoe UI',
+            fontSize: '11px',
+            color: '#cbd5e1'
+          }
+        ).setDepth(baseDepth + 3)
+      );
+
+      contentY += 56;
+    } else {
+      // Estado de intento regular
+      this.track(
+        this.scene.add.text(
+          modalX + 22,
+          contentY,
+          result.isCorrect
+            ? `✓ RESPUESTA CORRECTA (Intento ${result.attempts} • ${result.hintsUsed} pista(s) usadas)`
+            : `✕ RESPUESTA SELECCIONADA: "${result.selectedOption}" no cumple la condición requerida.`,
+          {
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            color: result.isCorrect ? '#34d399' : '#f87171',
+            fontStyle: 'bold'
+          }
+        ).setDepth(baseDepth + 3)
+      );
+      contentY += 26;
+
+      // Tarjeta de ajuste de dificultad adaptativa
+      if (result.adaptiveResult) {
+        const adaptBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
+        adaptBg.fillStyle(0x131d33, 0.92);
+        adaptBg.fillRoundedRect(modalX + 22, contentY, modalW - 44, 44, 6);
+        adaptBg.lineStyle(1, 0x38bdf8, 0.6);
+        adaptBg.strokeRoundedRect(modalX + 22, contentY, modalW - 44, 44, 6);
+
+        this.track(
+          this.scene.add.text(
+            modalX + 32,
+            contentY + 6,
+            `DIFICULTAD ADAPTATIVA: ${result.adaptiveResult.reason}`,
+            {
+              fontFamily: 'monospace',
+              fontSize: '10px',
+              color: '#38bdf8',
+              fontStyle: 'bold'
+            }
+          ).setDepth(baseDepth + 3)
+        );
+
+        this.track(
+          this.scene.add.text(
+            modalX + 32,
+            contentY + 22,
+            result.adaptiveResult.explanation,
+            {
+              fontFamily: 'Segoe UI',
+              fontSize: '11px',
+              color: '#94a3b8',
+              wordWrap: { width: modalW - 64 }
+            }
+          ).setDepth(baseDepth + 3)
+        );
+
+        contentY += 54;
+      }
+    }
+
+    // 3. Explicación conceptual profunda
     this.track(
       this.scene.add.text(
-        modalX + 24,
-        contentY,
-        result.isCorrect
-          ? `✓ RESPUESTA CORRECTA (Intento ${result.attempts} • ${result.hintsUsed} pista(s) usadas)`
-          : `✕ OBSERVACIÓN: "${result.selectedOption}" no es la solución correcta.`,
-        {
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          color: result.isCorrect ? '#34d399' : '#f87171',
-          fontStyle: 'bold'
-        }
-      ).setDepth(baseDepth + 3)
-    );
-    contentY += 30;
-
-    // Explicación profunda
-    this.track(
-      this.scene.add.text(
-        modalX + 24,
+        modalX + 22,
         contentY,
         `Explicación Paso a Paso:\n${result.explanation}`,
         {
           fontFamily: 'Segoe UI',
-          fontSize: '13px',
+          fontSize: '12px',
           color: '#f8fafc',
-          lineSpacing: 4,
-          wordWrap: { width: modalW - 48 }
+          lineSpacing: 3,
+          wordWrap: { width: modalW - 44 }
         }
       ).setDepth(baseDepth + 3)
     );
-    contentY += 95;
+    contentY += 75;
 
-    // Principio y concepto faltante
+    // 4. Concepto Requerido
     this.track(
       this.scene.add.text(
-        modalX + 24,
+        modalX + 22,
         contentY,
         `Concepto Requerido: ${result.conceptNeeded}`,
         {
           fontFamily: 'monospace',
-          fontSize: '12px',
+          fontSize: '11px',
           color: '#38bdf8',
           fontStyle: 'bold',
-          wordWrap: { width: modalW - 48 }
+          wordWrap: { width: modalW - 44 }
         }
       ).setDepth(baseDepth + 3)
     );
-    contentY += 38;
+    contentY += 28;
 
-    // Estrategia de resolución
+    // 5. Estrategia Recomendada
     this.track(
       this.scene.add.text(
-        modalX + 24,
+        modalX + 22,
         contentY,
         `Estrategia Recomendada:\n${result.strategy}`,
         {
           fontFamily: 'Segoe UI',
-          fontSize: '12px',
+          fontSize: '11px',
           color: '#cbd5e1',
-          wordWrap: { width: modalW - 48 }
+          wordWrap: { width: modalW - 44 }
         }
       ).setDepth(baseDepth + 3)
     );
 
-    // Botón de acción principal
-    const btnY = modalY + modalH - 35;
+    // 6. Botones de Acción (inferior)
+    const btnY = modalY + modalH - 30;
     const btnW = 260;
-    const btnH = 38;
+    const btnH = 34;
 
-    const actionBtnBg = this.track(
-      this.scene.add.graphics().setDepth(baseDepth + 4)
-    );
+    const actionBtnBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 4));
     actionBtnBg.fillStyle(result.isCorrect ? 0x059669 : 0x2563eb, 1);
     actionBtnBg.fillRoundedRect(modalX + modalW / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 6);
 
-    const actionBtnLabel = this.track(
+    this.track(
       this.scene.add.text(
         modalX + modalW / 2,
         btnY,
@@ -474,18 +548,16 @@ export class ChallengeModal {
       }
     });
 
-    // Botón Cerrar e ir a Explorar
     const exitBtn = this.track(
-      this.scene.add.text(modalX + modalW - 100, btnY, '[ Salir / Esc ]', {
+      this.scene.add.text(modalX + modalW - 90, btnY, '[ Salir / Esc ]', {
         fontFamily: 'monospace',
-        fontSize: '12px',
+        fontSize: '11px',
         color: '#94a3b8'
       })
       .setOrigin(0.5)
       .setDepth(baseDepth + 5)
       .setInteractive({ useHandCursor: true })
     );
-
     exitBtn.on('pointerdown', () => this.close());
   }
 
@@ -494,5 +566,8 @@ export class ChallengeModal {
     this.currentView = null;
     this.clearElements();
     if (this.player) this.player.unfreeze();
+    if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
+      this.scene.updateHUDLevel();
+    }
   }
 }
