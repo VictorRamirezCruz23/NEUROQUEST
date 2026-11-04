@@ -18,6 +18,21 @@ export class DiagnosticManager {
   }
 
   /**
+   * Obtiene el estado del diagnóstico para la competencia.
+   * @param {string} competencyId
+   * @returns {{ completed: boolean, step: number, total: number }}
+   */
+  static getDiagnosticStatus(competencyId) {
+    const progress = sessionState.getProgress(competencyId);
+    const completed = progress ? !!progress.diagnosticCompleted : false;
+    return {
+      completed,
+      step: completed ? 1 : 0,
+      total: 1
+    };
+  }
+
+  /**
    * Obtiene el desafío diagnóstico para la competencia.
    * @param {string} competencyId
    * @returns {Object|null}

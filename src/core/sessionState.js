@@ -136,6 +136,10 @@ class SessionStateManager {
     return this.activeCompetency;
   }
 
+  getActiveCompetencyId() {
+    return this.activeCompetency;
+  }
+
   getActiveCompetencyMeta() {
     return COMPETENCY_METADATA[this.activeCompetency] || COMPETENCY_METADATA[COMPETENCY_IDS.LOGIC_MATH];
   }

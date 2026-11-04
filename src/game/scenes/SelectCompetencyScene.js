@@ -194,13 +194,11 @@ export class SelectCompetencyScene extends Phaser.Scene {
         enterBtnText
       ]);
 
-      // Interactividad con ratón
-      container.setInteractive(
-        new Phaser.Geom.Rectangle(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight),
-        Phaser.Geom.Rectangle.Contains
-      );
+      // Zona interactiva plana sobre la tarjeta para garantizar clic instantáneo
+      const hitZone = this.add.zone(x, cardY, cardWidth, cardHeight)
+        .setInteractive({ useHandCursor: true });
 
-      container.on('pointerover', () => {
+      hitZone.on('pointerover', () => {
         this.drawCardBackground(bg, cardWidth, cardHeight, meta, true, true);
         this.tweens.add({
           targets: container,
@@ -211,7 +209,7 @@ export class SelectCompetencyScene extends Phaser.Scene {
         });
       });
 
-      container.on('pointerout', () => {
+      hitZone.on('pointerout', () => {
         this.drawCardBackground(bg, cardWidth, cardHeight, meta, meta.id === this.selectedCompetencyId, false);
         this.tweens.add({
           targets: container,
@@ -223,11 +221,11 @@ export class SelectCompetencyScene extends Phaser.Scene {
       });
 
       // Al hacer clic en la tarjeta: selecciona e ingresa directamente al mundo
-      container.on('pointerdown', () => {
+      hitZone.on('pointerdown', () => {
         this.enterSelectedWorld(meta.id);
       });
 
-      this.cards.push({ container, bg, meta, cardWidth, cardHeight });
+      this.cards.push({ container, bg, meta, cardWidth, cardHeight, hitZone });
     });
   }
 
@@ -269,11 +267,27 @@ export class SelectCompetencyScene extends Phaser.Scene {
   }
 
   setupKeyboardShortcuts() {
-    this.input.keyboard.on('keydown-ONE', () => this.enterSelectedWorld(COMPETENCY_IDS.LOGIC_MATH));
-    this.input.keyboard.on('keydown-TWO', () => this.enterSelectedWorld(COMPETENCY_IDS.COMPUTATIONAL_THINKING));
-    this.input.keyboard.on('keydown-THREE', () => this.enterSelectedWorld(COMPETENCY_IDS.READING_COMPREHENSION));
-    this.input.keyboard.on('keydown-FOUR', () => this.enterSelectedWorld(COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY));
-    this.input.keyboard.on('keydown-ENTER', () => this.enterSelectedWorld(this.selectedCompetencyId));
+    const startRoute = (id) => this.enterSelectedWorld(id);
+
+    // Teclado numérico y superior
+    this.input.keyboard.on('keydown-ONE', () => startRoute(COMPETENCY_IDS.LOGIC_MATH));
+    this.input.keyboard.on('keydown-NUMPAD_ONE', () => startRoute(COMPETENCY_IDS.LOGIC_MATH));
+    this.input.keyboard.on('keydown-L', () => startRoute(COMPETENCY_IDS.LOGIC_MATH));
+
+    this.input.keyboard.on('keydown-TWO', () => startRoute(COMPETENCY_IDS.COMPUTATIONAL_THINKING));
+    this.input.keyboard.on('keydown-NUMPAD_TWO', () => startRoute(COMPETENCY_IDS.COMPUTATIONAL_THINKING));
+    this.input.keyboard.on('keydown-C', () => startRoute(COMPETENCY_IDS.COMPUTATIONAL_THINKING));
+
+    this.input.keyboard.on('keydown-THREE', () => startRoute(COMPETENCY_IDS.READING_COMPREHENSION));
+    this.input.keyboard.on('keydown-NUMPAD_THREE', () => startRoute(COMPETENCY_IDS.READING_COMPREHENSION));
+    this.input.keyboard.on('keydown-A', () => startRoute(COMPETENCY_IDS.READING_COMPREHENSION));
+
+    this.input.keyboard.on('keydown-FOUR', () => startRoute(COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY));
+    this.input.keyboard.on('keydown-NUMPAD_FOUR', () => startRoute(COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY));
+    this.input.keyboard.on('keydown-E', () => startRoute(COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY));
+
+    this.input.keyboard.on('keydown-ENTER', () => startRoute(this.selectedCompetencyId));
+    this.input.keyboard.on('keydown-SPACE', () => startRoute(this.selectedCompetencyId));
   }
 
   enterSelectedWorld(competencyId = null) {
@@ -284,8 +298,10 @@ export class SelectCompetencyScene extends Phaser.Scene {
     sessionState.setActiveCompetency(targetId);
     console.log(`[SelectCompetencyScene] Entrando al mundo de: ${targetId}`);
 
-    this.cameras.main.fadeOut(250, 10, 12, 22);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
+    this.cameras.main.fadeOut(200, 10, 12, 22);
+
+    // Timeout de seguridad garantizado para la transición
+    this.time.delayedCall(220, () => {
       this.scene.start('WorldScene', { competencyId: targetId });
     });
   }

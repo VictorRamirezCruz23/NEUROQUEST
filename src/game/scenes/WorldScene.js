@@ -34,6 +34,10 @@ export class WorldScene extends Phaser.Scene {
     const worldWidth = 2400;
     const worldHeight = 540;
 
+    // Resetear efectos residuales de fade y transicionar suavemente
+    this.cameras.main.resetFX();
+    this.cameras.main.fadeIn(350, 10, 12, 22);
+
     // 1. Configurar límites físicos del mundo
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
@@ -55,7 +59,6 @@ export class WorldScene extends Phaser.Scene {
     // 7. Configurar cámara dinámica con seguimiento suave
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.fadeIn(350, 10, 12, 22);
 
     // 8. Crear interfaz de usuario (HUD) superpuesta (objetos planos sin anidar)
     this.createHUD();
@@ -312,18 +315,21 @@ export class WorldScene extends Phaser.Scene {
 
   updateHUDLevel() {
     if (!this.levelText) return;
-    const compId = sessionState.getActiveCompetencyId();
-    if (DiagnosticManager.needsDiagnostic(compId)) {
-      const diagStatus = DiagnosticManager.getDiagnosticStatus(compId);
-      const step = diagStatus ? diagStatus.step + 1 : 1;
-      const total = diagStatus ? diagStatus.total : 3;
-      this.levelText.setText(`${this.meta.discipline} • DIAGNÓSTICO [${step}/${total}]`);
-      this.levelText.setColor('#fbbf24');
-    } else {
-      const lvl = educationEngine.getCurrentLevel(compId);
-      const label = DIFFICULTY_LABELS[lvl] || `Nivel ${lvl}`;
-      this.levelText.setText(`${this.meta.discipline} • ${label}`);
-      this.levelText.setColor('#38bdf8');
+    try {
+      const compId = sessionState.getActiveCompetency();
+      const needsDiag = DiagnosticManager && typeof DiagnosticManager.needsDiagnostic === 'function' && DiagnosticManager.needsDiagnostic(compId);
+
+      if (needsDiag) {
+        this.levelText.setText(`${this.meta.discipline} • EVALUACIÓN DIAGNÓSTICA`);
+        this.levelText.setColor('#fbbf24');
+      } else {
+        const lvl = educationEngine.getCurrentLevel(compId);
+        const label = DIFFICULTY_LABELS[lvl] || `Nivel ${lvl}`;
+        this.levelText.setText(`${this.meta.discipline} • ${label}`);
+        this.levelText.setColor('#38bdf8');
+      }
+    } catch (err) {
+      console.warn('[WorldScene] Error al actualizar HUD de nivel:', err);
     }
   }
 
@@ -336,8 +342,8 @@ export class WorldScene extends Phaser.Scene {
     }
 
     console.log('[WorldScene] Cambiando a SelectCompetencyScene...');
-    this.cameras.main.fadeOut(250, 10, 12, 22);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
+    this.cameras.main.fadeOut(200, 10, 12, 22);
+    this.time.delayedCall(220, () => {
       this.scene.start('SelectCompetencyScene');
     });
   }
