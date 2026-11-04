@@ -46,3 +46,66 @@ html, body {
   image-rendering: crisp-edges;
   display: block;
 }
+
+/* Aviso de Rotación a Horizontal para Dispositivos Móviles */
+.rotate-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(10, 12, 22, 0.98);
+  z-index: 99999;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.rotate-box {
+  background: #111827;
+  border: 2px solid #38bdf8;
+  border-radius: 12px;
+  padding: 28px 24px;
+  max-width: 380px;
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.3);
+}
+
+.rotate-icon {
+  font-size: 42px;
+  margin-bottom: 16px;
+  animation: pulse-rotate 2s infinite ease-in-out;
+}
+
+.rotate-box h2 {
+  font-family: monospace;
+  font-size: 20px;
+  color: #38bdf8;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+
+.rotate-box p {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+@keyframes pulse-rotate {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.1) rotate(10deg);
+  }
+}
+
+/* Mostrar overlay cuando el dispositivo móvil esté en orientación vertical */
+@media screen and (orientation: portrait) and (max-width: 950px) {
+  .rotate-overlay {
+    display: flex !important;
+  }
+}

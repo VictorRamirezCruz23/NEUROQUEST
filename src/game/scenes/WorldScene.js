@@ -1,14 +1,17 @@
 import Phaser from 'phaser';
 import { Player } from '../entities/Player.js';
-import { sessionState, COMPETENCY_METADATA } from '../../core/sessionState.js';
+import { sessionState } from '../../core/sessionState.js';
+import { DeviceDetector } from '../../utils/deviceDetector.js';
+import { VirtualControls } from '../../ui/components/VirtualControls.js';
+import { ChallengeModal } from '../../ui/components/ChallengeModal.js';
 
 /**
  * Escena del Mundo Interactivo y Plataformas 2D de NEUROQUEST.
- * Se adapta dinámicamente al mundo seleccionado:
- * L  -> Mundo 01: Núcleo de Lógica (Pensamiento Lógico y Matemático)
- * CM -> Mundo 02: Circuitos Mentales (Pensamiento Computacional)
- * AC -> Mundo 03: Archivo del Conocimiento (Comprensión Lectora)
- * E  -> Mundo 04: Dimensión Estratégica (Resolución Multidisciplinaria)
+ * Carga el fondo de escenario pixel art oficial de la competencia activa:
+ * L  -> bg_logic_math (Núcleo de Lógica)
+ * CM -> bg_computational (Circuitos Mentales)
+ * AC -> bg_reading (Archivo del Conocimiento)
+ * E  -> bg_strategic (Dimensión Estratégica)
  */
 export class WorldScene extends Phaser.Scene {
   constructor() {
@@ -30,20 +33,21 @@ export class WorldScene extends Phaser.Scene {
     // 1. Configurar límites físicos del mundo
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
-    // 2. Fondo ambiental de ciencia ficción adaptado al color temático de la ruta
+    // 2. Fondo ambiental oficial de la competencia
     this.createAtmosphere(worldWidth, worldHeight);
 
-    // 3. Crear plataformas estáticas y suelo
+    // 3. Crear suelo y plataformas colisionables alineadas con el fondo
     this.createWorldGeometry(worldWidth, worldHeight);
 
     // 4. Instanciar jugador con su spritesheet
-    this.player = new Player(this, 120, worldHeight - 120);
+    // Posicionar al jugador sobre el suelo metálico del escenario (Y = 380)
+    this.player = new Player(this, 140, 380);
 
     // 5. Configurar colisiones físicas
     this.physics.add.collider(this.player, this.platforms);
 
     // 6. Colocar terminales y puntos de interés interactivos
-    this.createInteractiveTerminals(worldHeight);
+    this.createInteractiveTerminals();
 
     // 7. Configurar cámara dinámica con seguimiento suave
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
@@ -53,37 +57,54 @@ export class WorldScene extends Phaser.Scene {
     // 8. Crear interfaz de usuario (HUD) superpuesta
     this.createHUD();
 
-    // 9. Atajo de teclado para cambiar de ruta [M]
+    // 9. Crear modal de desafíos educativos
+    this.challengeModal = new ChallengeModal(this, this.player);
+
+    // 10. Detección de dispositivo (Móvil vs. Computadora)
+    this.isMobile = DeviceDetector.isMobile();
+    if (this.isMobile) {
+      DeviceDetector.requestLandscape();
+      this.virtualControls = new VirtualControls(this, this.player);
+    }
+
+    // 11. Atajo de teclado para cambiar de ruta [M]
     this.keyM = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+
+    // Escuchar interacción táctil desde controles virtuales
+    this.events.on('touch-interact', () => {
+      this.handleTerminalInteraction();
+    });
   }
 
   createAtmosphere(worldWidth, worldHeight) {
-    // Fondo de gradiente oscuro
-    const bgGfx = this.add.graphics();
-    bgGfx.fillStyle(0x070912, 1);
-    bgGfx.fillRect(0, 0, worldWidth, worldHeight);
+    // 1. Renderizar fondo oficial pixel art si está cargado
+    if (this.textures.exists(this.meta.bgKey)) {
+      // Repetir el panorama para cubrir el ancho de 2400 px
+      const bg1 = this.add.image(0, 0, this.meta.bgKey).setOrigin(0, 0);
+      bg1.setDisplaySize(1200, worldHeight);
 
-    // Columnas de energía temáticas del mundo activo
-    for (let x = 80; x < worldWidth; x += 320) {
-      bgGfx.fillStyle(0x131929, 0.45);
-      bgGfx.fillRect(x, 0, 48, worldHeight);
-      bgGfx.fillStyle(this.meta.primaryColor, 0.22);
-      bgGfx.fillRect(x + 20, 0, 8, worldHeight);
+      const bg2 = this.add.image(1200, 0, this.meta.bgKey).setOrigin(0, 0);
+      bg2.setDisplaySize(1200, worldHeight);
+    } else {
+      // Respaldo de gradiente oscuro
+      const bgGfx = this.add.graphics();
+      bgGfx.fillStyle(0x070912, 1);
+      bgGfx.fillRect(0, 0, worldWidth, worldHeight);
     }
 
-    // Partículas ambientales tintadas con el color de la competencia
-    for (let i = 0; i < 110; i++) {
+    // 2. Partículas ambientales tintadas con el color de la competencia activa
+    for (let i = 0; i < 90; i++) {
       const px = Phaser.Math.Between(0, worldWidth);
-      const py = Phaser.Math.Between(0, worldHeight);
+      const py = Phaser.Math.Between(0, worldHeight - 120);
       const size = Phaser.Math.Between(1, 3);
-      const alpha = Phaser.Math.FloatBetween(0.2, 0.7);
+      const alpha = Phaser.Math.FloatBetween(0.25, 0.75);
 
       const dot = this.add.rectangle(px, py, size, size, this.meta.primaryColor, alpha);
       this.tweens.add({
         targets: dot,
-        y: py - Phaser.Math.Between(10, 30),
-        alpha: alpha * 0.25,
-        duration: Phaser.Math.Between(2000, 4500),
+        y: py - Phaser.Math.Between(10, 25),
+        alpha: alpha * 0.3,
+        duration: Phaser.Math.Between(2200, 4800),
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
@@ -94,23 +115,23 @@ export class WorldScene extends Phaser.Scene {
   createWorldGeometry(worldWidth, worldHeight) {
     this.platforms = this.physics.add.staticGroup();
 
-    // Suelo sólido continuo de baldosas
-    const groundY = worldHeight - 32;
+    // Suelo sólido continuo alineado exactamente con la línea de suelo del arte (Y = 430 px)
+    const groundY = 430;
     for (let x = 0; x < worldWidth; x += 32) {
+      // Baldosa con colisión superior
       const tile = this.platforms.create(x + 16, groundY + 16, 'tile_ground');
+      tile.setVisible(false); // Invisible para dejar ver el suelo ilustrado del fondo
       tile.refreshBody();
     }
 
-    // Plataformas flotantes en distintos niveles para evaluar salto y físicas
+    // Plataformas flotantes elevadas adicionales para exploración vertical
     const platformData = [
-      { x: 340, y: 390, length: 5 },
-      { x: 560, y: 310, length: 4 },
-      { x: 750, y: 230, length: 6 },
-      { x: 1020, y: 320, length: 4 },
-      { x: 1250, y: 400, length: 7 },
-      { x: 1520, y: 310, length: 5 },
-      { x: 1740, y: 220, length: 6 },
-      { x: 2020, y: 320, length: 5 }
+      { x: 380, y: 310, length: 4 },
+      { x: 620, y: 230, length: 5 },
+      { x: 1040, y: 300, length: 4 },
+      { x: 1380, y: 320, length: 5 },
+      { x: 1680, y: 220, length: 6 },
+      { x: 2020, y: 310, length: 5 }
     ];
 
     platformData.forEach(p => {
@@ -122,22 +143,22 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  createInteractiveTerminals(worldHeight) {
+  createInteractiveTerminals() {
     this.terminals = this.physics.add.staticGroup();
 
-    // Terminal educativa 1: Consola de Diagnóstico e Información
-    const t1 = this.terminals.create(900, worldHeight - 32 - 32, 'terminal_device');
+    // Terminal educativa 1: Entrada y Diagnóstico del Sector
+    const t1 = this.terminals.create(890, 398, 'terminal_device');
     t1.refreshBody();
 
-    // Terminal educativa 2: Plataforma de Desafíos
-    const t2 = this.terminals.create(1840, 220 - 32, 'terminal_device');
+    // Terminal educativa 2: Plataforma de Misiones Avanzadas
+    const t2 = this.terminals.create(1780, 188, 'terminal_device');
     t2.refreshBody();
 
     // Efecto de pulso de luz holográfico
     [t1, t2].forEach(terminal => {
       this.tweens.add({
         targets: terminal,
-        alpha: 0.82,
+        alpha: 0.85,
         duration: 1200,
         yoyo: true,
         repeat: -1,
@@ -150,20 +171,10 @@ export class WorldScene extends Phaser.Scene {
       fontFamily: 'monospace',
       fontSize: '13px',
       color: this.meta.primaryColorHex,
-      backgroundColor: 'rgba(10, 12, 22, 0.9)',
-      padding: { x: 8, y: 4 }
-    }).setOrigin(0.5).setVisible(false);
-
-    // Mensaje de diálogo contextual
-    this.dialogBox = this.add.text(0, 0, '', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#f8fafc',
-      backgroundColor: 'rgba(15, 23, 42, 0.96)',
-      padding: { x: 14, y: 10 },
+      backgroundColor: 'rgba(10, 12, 22, 0.92)',
+      padding: { x: 8, y: 4 },
       stroke: this.meta.primaryColorHex,
-      strokeThickness: 1,
-      align: 'center'
+      strokeThickness: 1
     }).setOrigin(0.5).setVisible(false);
 
     this.keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
@@ -172,6 +183,7 @@ export class WorldScene extends Phaser.Scene {
   createHUD() {
     const hudContainer = this.add.container(0, 0);
     hudContainer.setScrollFactor(0);
+    hudContainer.setDepth(1500);
 
     // Barra superior izquierda: Identidad de la competencia activa
     const topBar = this.add.graphics();
@@ -246,6 +258,26 @@ export class WorldScene extends Phaser.Scene {
       this.goToCompetencySelector();
     });
 
+    // Botón para alternar controles táctiles en pantalla (disponible para pruebas)
+    const toggleTouchBtn = this.add.text(this.scale.width - 240, 38, this.isMobile ? '📱 Táctil' : '🖥️ PC', {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+      padding: { x: 8, y: 6 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    toggleTouchBtn.on('pointerdown', () => {
+      if (this.virtualControls) {
+        this.virtualControls.destroy();
+        this.virtualControls = null;
+        toggleTouchBtn.setText('🖥️ PC');
+      } else {
+        this.virtualControls = new VirtualControls(this, this.player);
+        toggleTouchBtn.setText('📱 Táctil');
+      }
+    });
+
     // Panel de controles inferior
     const bottomControls = this.add.text(
       this.scale.width / 2,
@@ -267,6 +299,7 @@ export class WorldScene extends Phaser.Scene {
       worldNameText,
       disciplineText,
       changeBtnContainer,
+      toggleTouchBtn,
       bottomControls
     ]);
   }
@@ -278,9 +311,19 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  handleTerminalInteraction() {
+    if (this.challengeModal && !this.challengeModal.isOpen) {
+      this.challengeModal.open();
+    }
+  }
+
   update(time, delta) {
     if (this.player) {
       this.player.update(time, delta);
+    }
+
+    if (this.virtualControls) {
+      this.virtualControls.update();
     }
 
     // Tecla M para abrir selector de competencias en cualquier momento
@@ -295,7 +338,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.terminals.getChildren().forEach(terminal => {
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, terminal.x, terminal.y);
-      if (dist < 70) {
+      if (dist < 75) {
         nearTerminal = true;
         activeTerminal = terminal;
       }
@@ -306,15 +349,7 @@ export class WorldScene extends Phaser.Scene {
       this.interactionPrompt.setVisible(true);
 
       if (Phaser.Input.Keyboard.JustDown(this.keyE)) {
-        this.dialogBox.setPosition(activeTerminal.x, activeTerminal.y - 95);
-        this.dialogBox.setText(
-          `Terminal: [${this.meta.code}] ${this.meta.name}\n${this.meta.tagline}\nPresiona [M] para alternar ruta o [E] para cerrar.`
-        );
-        this.dialogBox.setVisible(true);
-
-        this.time.delayedCall(4500, () => {
-          this.dialogBox.setVisible(false);
-        });
+        this.handleTerminalInteraction();
       }
     } else {
       this.interactionPrompt.setVisible(false);

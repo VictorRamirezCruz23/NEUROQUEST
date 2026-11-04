@@ -8,7 +8,7 @@
 | **1** | Fundación Vite y Phaser 3 con estructura modular | ✅ Completado |
 | **2** | Personaje, físicas y mundo interactivo pixel art | ✅ Completado |
 | **3** | Pantalla y flujo de Selección de Competencias | ✅ Completado |
-| **4** | Motor educativo modular (`EducationEngine`) y Ruta 01 | ⏳ Pendiente de autorización |
+| **4** | Motor educativo modular (`EducationEngine`) y Ruta 01 | ✅ Completado |
 | **5** | Diagnóstico inicial y algoritmo de dificultad adaptativa | ⏳ Pendiente de autorización |
 | **6** | Evaluaciones de transferencia y retención temporal | ⏳ Pendiente de autorización |
 | **7** | Integración con Firebase (Auth y Cloud Firestore) | ⏳ Pendiente de autorización |

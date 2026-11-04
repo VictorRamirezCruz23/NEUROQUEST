@@ -14,7 +14,11 @@ Este documento registra el inventario oficial de recursos visuales, tilesets, sp
 | `tile_ground` | Baldosa Terreno | Procedural (`PreloadScene.js`) | 32x32 px | Suelo firme con luz cian superior | ✅ Aprobado para Plataformas |
 | `tile_platform` | Baldosa Flotante | Procedural (`PreloadScene.js`) | 32x32 px | Plataformas elevadas metálicas | ✅ Aprobado para Plataformas |
 | `terminal_device` | Objeto Interactivo | Procedural (`PreloadScene.js`) | 48x64 px | Consola con holograma pulsante | ✅ Aprobado para Puntos de Interacción |
-| `icon_competencies` | Atlas UI | `public/assets/ui/competency_badges.png` | 64x64 px | 4 iconos de rutas | ⏳ Planificado para Incremento 3 |
+| `bg_logic_math` | Fondo Escenario | `public/assets/backgrounds/bg_logic_math.jpg` | 2752x1536 px | Núcleo de Lógica (Cian / Salas de cálculo) | ✅ Aprobado y Suministrado por Usuario |
+| `bg_computational` | Fondo Escenario | `public/assets/backgrounds/bg_computational.jpg` | 2752x1536 px | Circuitos Mentales (Esmeralda / Silicio) | ✅ Aprobado y Suministrado por Usuario |
+| `bg_reading` | Fondo Escenario | `public/assets/backgrounds/bg_reading.jpg` | 2752x1536 px | Archivo del Conocimiento (Púrpura / Biblioteca) | ✅ Aprobado y Suministrado por Usuario |
+| `bg_strategic` | Fondo Escenario | `public/assets/backgrounds/bg_strategic.jpg` | 2752x1536 px | Dimensión Estratégica (Naranja / Telemetría) | ✅ Aprobado y Suministrado por Usuario |
+| `icon_competencies` | Atlas UI | `public/assets/ui/competency_badges.png` | 64x64 px | 4 iconos de rutas | ⏳ Planificado |
 
 ---
 

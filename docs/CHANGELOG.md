@@ -6,6 +6,27 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.4.0] - 2026-11-04
+
+### Añadido
+- **Incremento 4 (Motor Educativo Modular, Fondos de Escenario y Modo Móvil/PC):**
+  - Integración de los 4 fondos de escenario pixel art originales suministrados por el usuario:
+    - `bg_logic_math.jpg` (L - Núcleo de Lógica)
+    - `bg_computational.jpg` (CM - Circuitos Mentales)
+    - `bg_reading.jpg` (AC - Archivo del Conocimiento)
+    - `bg_strategic.jpg` (E - Dimensión Estratégica)
+  - Detección inteligente de dispositivo (`DeviceDetector.js`):
+    - Identifica si el jugador está en computadora o teléfono/tablet.
+    - Soporte forzado para orientación horizontal (Landscape) con advertencia visual animada en pantalla (`rotate-overlay` en `index.html` y CSS).
+    - Controles virtuales táctiles en pantalla (`VirtualControls.js`): D-Pad izquierdo (◀ / ▶) y botones derechos de acción (▲ Salto, ⚡ Acción, [E] Terminal) cuando se juega desde un teléfono.
+    - Botón de alternancia rápida "📱 Táctil / 🖥️ PC" en el HUD para pruebas directas en PC.
+  - Implementación de [`EducationEngine.js`](src/education/engines/EducationEngine.js): Motor pedagógico modular desacoplado del motor Phaser.
+  - Repositorio curricular [`ChallengeRepository.js`](src/education/repositories/ChallengeRepository.js) con banco de desafíos de la Ruta 01 (Núcleo de Lógica): secuencias recursivas, fracciones y razones, operaciones combinadas con jerarquía, y razonamiento deductivo.
+  - Componente modal pedagógico [`ChallengeModal.js`](src/ui/components/ChallengeModal.js): Interfaz con contexto narrativo, opciones múltiples, solicitud de pistas contextuales progresivas y retroalimentación formativa conceptual profunda (explicación de error, concepto faltante y estrategia de resolución).
+  - Vinculación interactiva de las terminales en `WorldScene.js` con apertura del modal educativo.
+
+---
+
 ## [0.3.0] - 2026-11-04
 
 ### Añadido

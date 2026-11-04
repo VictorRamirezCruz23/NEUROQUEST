@@ -31,8 +31,8 @@ Desarrollar **NEUROQUEST**, una plataforma de aventura educativa adaptativa 2D e
 - **Incremento 1:** Fundación Vite y Phaser 3. *(Completado)*
 - **Incremento 2:** Personaje y mundo interactivo. *(Completado)*
 - **Incremento 3:** Selector de competencias. *(Completado)*
-- **Incremento 4:** Motor educativo modular y primera ruta (Núcleo de Lógica). *(Siguiente / Pendiente de autorización)*
-- **Incremento 5:** Diagnóstico y dificultad adaptativa.
+- **Incremento 4:** Motor educativo modular y primera ruta (Núcleo de Lógica). *(Completado)*
+- **Incremento 5:** Diagnóstico y dificultad adaptativa. *(Siguiente / Pendiente de autorización)*
 - **Incremento 6:** Evaluaciones de transferencia y retención.
 - **Incremento 7:** Integración Firebase (Auth y Firestore).
 - **Incremento 8:** Integración Gemini (Cloud Functions backend).

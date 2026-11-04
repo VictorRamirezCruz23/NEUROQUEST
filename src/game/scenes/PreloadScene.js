@@ -48,6 +48,12 @@ export class PreloadScene extends Phaser.Scene {
       frameHeight: 330
     });
 
+    // Cargar los 4 fondos de escenario pixel art oficiales
+    this.load.image('bg_logic_math', '/assets/backgrounds/bg_logic_math.jpg');
+    this.load.image('bg_computational', '/assets/backgrounds/bg_computational.jpg');
+    this.load.image('bg_reading', '/assets/backgrounds/bg_reading.jpg');
+    this.load.image('bg_strategic', '/assets/backgrounds/bg_strategic.jpg');
+
     // Generar texturas de respaldo procedurales para pixel art y mundo interactivo
     this.createProceduralAssets();
   }

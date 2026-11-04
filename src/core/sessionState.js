@@ -29,7 +29,8 @@ export const COMPETENCY_METADATA = {
     primaryColorHex: '#38bdf8',
     accentColor: 0x2563eb,
     accentColorHex: '#2563eb',
-    badgeBg: 0x0369a1
+    badgeBg: 0x0369a1,
+    bgKey: 'bg_logic_math'
   },
   [COMPETENCY_IDS.COMPUTATIONAL_THINKING]: {
     id: COMPETENCY_IDS.COMPUTATIONAL_THINKING,
@@ -49,7 +50,8 @@ export const COMPETENCY_METADATA = {
     primaryColorHex: '#10b981',
     accentColor: 0x059669,
     accentColorHex: '#059669',
-    badgeBg: 0x065f46
+    badgeBg: 0x065f46,
+    bgKey: 'bg_computational'
   },
   [COMPETENCY_IDS.READING_COMPREHENSION]: {
     id: COMPETENCY_IDS.READING_COMPREHENSION,
@@ -69,7 +71,8 @@ export const COMPETENCY_METADATA = {
     primaryColorHex: '#a855f7',
     accentColor: 0x7e22ce,
     accentColorHex: '#7e22ce',
-    badgeBg: 0x581c87
+    badgeBg: 0x581c87,
+    bgKey: 'bg_reading'
   },
   [COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY]: {
     id: COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY,
@@ -89,7 +92,8 @@ export const COMPETENCY_METADATA = {
     primaryColorHex: '#f97316',
     accentColor: 0xd97706,
     accentColorHex: '#d97706',
-    badgeBg: 0x9a3412
+    badgeBg: 0x9a3412,
+    bgKey: 'bg_strategic'
   }
 };
 
