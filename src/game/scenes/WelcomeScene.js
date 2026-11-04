@@ -82,15 +82,15 @@ export class WelcomeScene extends Phaser.Scene {
 
     btnBg.on('pointerdown', () => {
       btnContainer.setScale(0.96);
-      this.cameras.main.fadeOut(400, 10, 12, 22);
+      this.cameras.main.fadeOut(350, 10, 12, 22);
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('WorldScene');
+        this.scene.start('SelectCompetencyScene');
       });
-      console.log('[WelcomeScene] Iniciar aventura presionado. Transicionando a WorldScene.');
+      console.log('[WelcomeScene] Iniciar aventura presionado. Transicionando a SelectCompetencyScene.');
     });
 
     // Pie de página de estado del sistema
-    this.add.text(width / 2, height - 25, 'v0.2.0 • Incremento 2: Personaje y Mundo Interactivo 2D', {
+    this.add.text(width / 2, height - 25, 'v0.3.0 • Incremento 3: Selector de Competencias Activo', {
       fontFamily: 'monospace',
       fontSize: '12px',
       color: '#64748b'

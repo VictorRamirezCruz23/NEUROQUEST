@@ -6,6 +6,21 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.3.0] - 2026-11-04
+
+### Añadido
+- **Incremento 3 (Selector de Competencias y Rutas Curriculares):**
+  - Implementación de [`sessionState.js`](src/core/sessionState.js): Gestor de estado desacoplado de Phaser con las especificaciones de las 4 rutas curriculares:
+    - **L:** Pensamiento Lógico y Matemático *(Mundo 01: Núcleo de Lógica)*
+    - **CM:** Pensamiento Computacional y Programación *(Mundo 02: Circuitos Mentales)*
+    - **AC:** Comprensión Lectora *(Mundo 03: Archivo del Conocimiento)*
+    - **E:** Resolución Multidisciplinaria de Problemas *(Mundo 04: Dimensión Estratégica)*
+  - Creación de [`SelectCompetencyScene.js`](src/game/scenes/SelectCompetencyScene.js): Escena interactiva del selector con 4 tarjetas visuales pixel art, efectos de elevación hover, detalles de habilidades clave, soporte de clics y selección rápida por teclado ([1], [2], [3], [4], [Enter]).
+  - Adaptación temática dinámica en [`WorldScene.js`](src/game/scenes/WorldScene.js): La instalación y partículas se sintonizan con la paleta de la competencia activa, el HUD muestra la insignia distintiva (`[L]`, `[CM]`, `[AC]`, `[E]`), y se integra el botón y atajo `[M]` para cambiar de competencia en cualquier momento durante la aventura.
+  - Conexión de flujo en `WelcomeScene.js` hacia el Selector de Competencias.
+
+---
+
 ## [0.2.0] - 2026-11-04
 
 ### Añadido
