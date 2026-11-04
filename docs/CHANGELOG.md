@@ -6,6 +6,22 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.8.0] - 2026-11-04
+
+### Añadido
+- **Incremento 8 (Integración Segura de Gemini API con Cloud Functions Backend):**
+  - Implementación del backend serverless en `/functions` con Node.js y `@google/generative-ai`:
+    - [`functions/index.js`](functions/index.js): Endpoints llamables protegidos con autenticación (`explainError` y `generateHint`).
+    - Configuración de `firebase.json` con soporte para funciones y despliegue en Firebase Hosting.
+    - Guardrails pedagógicos estrictos: E.V.A. nunca revela la respuesta correcta, explica con analogías de ciencia ficción y sugiere preguntas guía sin alterar las calificaciones oficiales.
+  - Implementación del servicio cliente en frontend:
+    - [`tutorService.js`](src/services/gemini/tutorService.js): Invocador seguro de Cloud Functions (`httpsCallable`), con limitación de tasa, memoria caché de respuestas y modo de contingencia offline automático.
+    - Exportación de `functions` en [`firebaseConfig.js`](src/services/firebase/firebaseConfig.js).
+  - Integración en [`ChallengeModal.js`](src/ui/components/ChallengeModal.js):
+    - Enriquecimiento progresivo y asíncrono de retroalimentación pedagógica (`✨ E.V.A. • Asistente Pedagógica NEUROCORE`) ante errores conceptuales del estudiante.
+
+---
+
 ## [0.7.0] - 2026-11-04
 
 ### Añadido

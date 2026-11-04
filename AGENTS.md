@@ -35,6 +35,6 @@ Desarrollar **NEUROQUEST**, una plataforma de aventura educativa adaptativa 2D e
 - **Incremento 5:** Diagnóstico y dificultad adaptativa. *(Completado)*
 - **Incremento 6:** Evaluaciones de transferencia y retención. *(Completado)*
 - **Incremento 7:** Integración Firebase (Auth y Firestore). *(Completado)*
-- **Incremento 8:** Integración Gemini (Cloud Functions backend). *(Siguiente / Pendiente de autorización)*
-- **Incremento 9:** Dashboard de aprendizaje y métricas no infladas.
+- **Incremento 8:** Integración Gemini (Cloud Functions backend). *(Completado)*
+- **Incremento 9:** Dashboard de aprendizaje y métricas no infladas. *(Siguiente / Pendiente de autorización)*
 - **Incremento 10:** QA, auditoría de seguridad y entrega final.

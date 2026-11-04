@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { sessionState } from '../../core/sessionState.js';
 import { DIFFICULTY_LABELS } from '../../education/adaptive/AdaptiveEngine.js';
+import { tutorService } from '../../services/gemini/tutorService.js';
 
 /**
  * ChallengeModal.js — Interfaz interactiva de terminal educativa y evaluación adaptativa.
@@ -547,21 +548,43 @@ export class ChallengeModal {
       }
     }
 
-    // 3. Explicación conceptual profunda
-    this.track(
+    // 3. Explicación conceptual profunda de E.V.A. (Tutor IA con Gemini)
+    const explanationText = this.track(
       this.scene.add.text(
         modalX + 22,
         contentY,
         `Explicación Paso a Paso:\n${result.explanation}`,
         {
           fontFamily: 'Segoe UI',
-          fontSize: '12px',
+          fontSize: '11px',
           color: '#f8fafc',
-          lineSpacing: 3,
+          lineSpacing: 2,
           wordWrap: { width: modalW - 44 }
         }
       ).setDepth(baseDepth + 3)
     );
+
+    // Si el estudiante cometió un fallo, consultar a E.V.A. (Gemini Backend) para enriquecer la explicación
+    if (!result.isCorrect && this.currentChallenge) {
+      tutorService.requestErrorExplanation({
+        challengeId: this.currentChallenge.id,
+        competencyName: meta.name,
+        skillName: this.currentChallenge.skillName,
+        context: this.currentChallenge.context,
+        statement: this.currentChallenge.statement,
+        selectedOption: result.selectedOption,
+        conceptNeeded: result.conceptNeeded,
+        localExplanation: result.explanation
+      }).then(evaRes => {
+        if (evaRes && evaRes.explanation && explanationText && explanationText.active) {
+          explanationText.setText(`✨ ${evaRes.tutorName}:\n${evaRes.explanation}`);
+          explanationText.setColor('#e0f2fe');
+        }
+      }).catch(err => {
+        console.warn('[ChallengeModal] Error consultando tutor IA:', err);
+      });
+    }
+
     contentY += 75;
 
     // 4. Concepto Requerido

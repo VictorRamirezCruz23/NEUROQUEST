@@ -12,7 +12,7 @@
 | **5** | Diagnóstico inicial y algoritmo de dificultad adaptativa | ✅ Completado |
 | **6** | Evaluaciones de transferencia y retención temporal | ✅ Completado |
 | **7** | Integración con Firebase (Auth y Cloud Firestore) | ✅ Completado |
-| **8** | Integración de backend Gemini API (Cloud Functions) | ⏳ Pendiente de autorización |
+| **8** | Integración de backend Gemini API (Cloud Functions) | ✅ Completado |
 | **9** | Dashboard analítico de aprendizaje individual | ⏳ Pendiente de autorización |
 | **10** | QA integral, seguridad y optimización para entrega | ⏳ Pendiente de autorización |
 

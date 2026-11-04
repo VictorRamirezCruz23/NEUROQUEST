@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
+import { getFunctions } from 'firebase/functions';
 
 /**
  * firebaseConfig.js — Configuración centralizada e inicialización del SDK modular de Firebase.
@@ -26,7 +27,10 @@ export const auth = getAuth(app);
 // 3. Inicializar Cloud Firestore
 export const db = getFirestore(app);
 
-// 4. Inicializar Firebase Analytics si el entorno del navegador lo soporta
+// 4. Inicializar Cloud Functions
+export const functions = getFunctions(app);
+
+// 5. Inicializar Firebase Analytics si el entorno del navegador lo soporta
 export let analytics = null;
 if (typeof window !== 'undefined') {
   isSupported().then(supported => {
