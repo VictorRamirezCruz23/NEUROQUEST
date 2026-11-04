@@ -5,6 +5,7 @@ import { WelcomeScene } from '../game/scenes/WelcomeScene.js';
 
 export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 540;
+export const DEFAULT_GRAVITY_Y = 600;
 
 export const gameConfig = {
   type: Phaser.AUTO,
@@ -23,7 +24,7 @@ export const gameConfig = {
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { y: 0 },
+      gravity: { y: DEFAULT_GRAVITY_Y },
       debug: false
     }
   },

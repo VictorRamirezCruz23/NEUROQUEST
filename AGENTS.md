@@ -28,8 +28,8 @@ Desarrollar **NEUROQUEST**, una plataforma de aventura educativa adaptativa 2D e
 
 ## 4. Matriz de Incrementos
 - **Incremento 0:** Auditoría y planificación. *(Completado)*
-- **Incremento 1:** Fundación Vite y Phaser 3. *(En curso)*
-- **Incremento 2:** Personaje y mundo interactivo.
+- **Incremento 1:** Fundación Vite y Phaser 3. *(Completado)*
+- **Incremento 2:** Personaje y mundo interactivo. *(Siguiente / Pendiente de autorización)*
 - **Incremento 3:** Selector de competencias.
 - **Incremento 4:** Motor educativo modular y primera ruta (Núcleo de Lógica).
 - **Incremento 5:** Diagnóstico y dificultad adaptativa.
