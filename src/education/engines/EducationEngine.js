@@ -4,6 +4,7 @@ import { adaptiveEngine } from '../adaptive/AdaptiveEngine.js';
 import { DiagnosticManager } from '../assessments/DiagnosticManager.js';
 import { TransferAssessment } from '../assessments/TransferAssessment.js';
 import { RetentionAssessment } from '../assessments/RetentionAssessment.js';
+import { firestoreService } from '../../services/firebase/firestoreService.js';
 
 /**
  * EducationEngine.js — Núcleo educativo desacoplado de Phaser 3.
@@ -210,6 +211,22 @@ export class EducationEngine {
 
     // 5. Actualizar los 6 indicadores de aprendizaje
     this.updateSixIndicators(progress, isCorrect, isAutonomous, challenge);
+
+    // 6. Persistir progreso de la competencia y telemetría del intento en Firestore
+    sessionState.saveProgress(compId);
+    firestoreService.logChallengeAttempt({
+      challengeId: challenge.id,
+      competencyId: compId,
+      skillId: challenge.skillId,
+      isCorrect,
+      selectedOptionIndex,
+      attempts: this.currentAttempts,
+      hintsUsed: this.currentHintsRequested,
+      isDiagnostic: !!challenge.isDiagnostic,
+      isTransfer: !!challenge.isTransfer,
+      isRetention: !!challenge.isRetention,
+      currentLevel: progress ? progress.currentLevel : currentLevel
+    });
 
     return {
       isCorrect,

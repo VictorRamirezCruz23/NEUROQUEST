@@ -1,6 +1,10 @@
+import { authService } from '../services/firebase/authService.js';
+import { firestoreService } from '../services/firebase/firestoreService.js';
+
 /**
  * sessionState.js — Gestor de estado de sesión desacoplado de NEUROQUEST.
- * Administra la competencia activa y el progreso independiente de cada una.
+ * Administra la competencia activa y el progreso independiente de cada una,
+ * sincronizando automáticamente con Firebase Authentication y Cloud Firestore.
  */
 
 export const COMPETENCY_IDS = {
@@ -156,7 +160,52 @@ class SessionStateManager {
   getProgress(competencyId) {
     return this.competenciesState[competencyId];
   }
+
+  /**
+   * Guarda el progreso de la competencia en Firestore y caché local.
+   * @param {string} competencyId
+   */
+  async saveProgress(competencyId) {
+    const progress = this.competenciesState[competencyId];
+    if (progress) {
+      await firestoreService.saveCompetencyProgress(competencyId, progress);
+    }
+  }
+
+  /**
+   * Carga y sincroniza el estado de todas las competencias para el usuario activo.
+   * @param {Object} user
+   */
+  async syncWithFirestore(user) {
+    if (!user) return;
+    await firestoreService.syncUserProfile(user);
+
+    for (const compId of Object.values(COMPETENCY_IDS)) {
+      const remote = await firestoreService.loadCompetencyProgress(compId);
+      if (remote) {
+        this.competenciesState[compId] = {
+          ...this.competenciesState[compId],
+          ...remote
+        };
+      }
+    }
+    console.log('[SessionState] Progreso de competencias sincronizado con Firebase.');
+  }
+
+  /**
+   * Inicializa la sesión con inicio anónimo si no hay sesión previa.
+   */
+  async initSession() {
+    authService.onAuthStateChange(async (user) => {
+      if (user) {
+        await this.syncWithFirestore(user);
+      } else {
+        await authService.loginAnonymously();
+      }
+    });
+  }
 }
 
 // Singleton global de estado de sesión
 export const sessionState = new SessionStateManager();
+sessionState.initSession();

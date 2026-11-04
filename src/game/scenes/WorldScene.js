@@ -7,6 +7,8 @@ import { ChallengeModal } from '../../ui/components/ChallengeModal.js';
 import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { DiagnosticManager } from '../../education/assessments/DiagnosticManager.js';
 import { DIFFICULTY_LABELS } from '../../education/adaptive/AdaptiveEngine.js';
+import { authModalController } from '../../ui/components/AuthModalController.js';
+import { authService } from '../../services/firebase/authService.js';
 
 /**
  * Escena del Mundo Interactivo y Plataformas 2D de NEUROQUEST.
@@ -300,7 +302,28 @@ export class WorldScene extends Phaser.Scene {
       }
     });
 
-    // 4. Panel de controles inferior
+    // 4. Botón de Perfil / Nube de Cadete (Firebase Auth & Firestore)
+    const profileBtn = this.add.text(width - 340, 38, `👤 ${authService.getDisplayName()}`, {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+      padding: { x: 8, y: 6 }
+    })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 1)
+    .setInteractive({ useHandCursor: true });
+
+    profileBtn.on('pointerdown', () => authModalController.open());
+
+    authService.onAuthStateChange(() => {
+      if (profileBtn && profileBtn.setText) {
+        profileBtn.setText(`👤 ${authService.getDisplayName()}`);
+      }
+    });
+
+    // 5. Panel de controles inferior
     this.add.text(
       width / 2,
       height - 18,

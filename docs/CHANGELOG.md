@@ -6,6 +6,29 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.7.0] - 2026-11-04
+
+### Añadido
+- **Incremento 7 (Integración Firebase: Auth y Cloud Firestore):**
+  - Instalación y configuración centralizada del SDK modular de Firebase (`v11.x`):
+    - [`firebaseConfig.js`](src/services/firebase/firebaseConfig.js): Inicialización modular de Firebase App, Authentication, Cloud Firestore y Analytics con variables de entorno Vite (`.env`) y claves oficiales del proyecto `neuroquest-game`.
+    - Optimización de chunks en [`vite.config.js`](vite.config.js) para separar el bundle de Firebase.
+  - Implementación de [`authService.js`](src/services/firebase/authService.js):
+    - Soporte de acceso instantáneo sin fricción mediante autenticación anónima (`signInAnonymously`).
+    - Soporte completo para registro e inicio de sesión con correo y contraseña (`createUserWithEmailAndPassword`, `signInWithEmailAndPassword`, `updateProfile`).
+    - Observador reactivo de estado de sesión (`onAuthStateChanged`).
+  - Implementación de [`firestoreService.js`](src/services/firebase/firestoreService.js):
+    - Estructura de documentos en Cloud Firestore: `users/{uid}`, `users/{uid}/progress/{competencyId}` y `users/{uid}/attempts/{attemptId}`.
+    - Mecanismo de contingencia offline con cola de reintentos automática (`syncOfflineQueue`) y respaldo en `localStorage`.
+    - Registro de telemetría de intentos pedagógicos por desafío.
+  - Integración en [`sessionState.js`](src/core/sessionState.js) y [`EducationEngine.js`](src/education/engines/EducationEngine.js):
+    - Carga automática y sincronización bidireccional del progreso de las 4 competencias entre la nube y el juego local.
+  - Interfaz de usuario para identificación y perfil:
+    - Componente HTML y controlador modular [`AuthModalController.js`](src/ui/components/AuthModalController.js) con diseño cyber-retro libre de solapamientos.
+    - Botones de acceso a perfil de cadete integrados en [`WelcomeScene.js`](src/game/scenes/WelcomeScene.js) y en el HUD superior de [`WorldScene.js`](src/game/scenes/WorldScene.js).
+
+---
+
 ## [0.6.0] - 2026-11-04
 
 ### Añadido

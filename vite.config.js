@@ -12,7 +12,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          phaser: ['phaser']
+          phaser: ['phaser'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/analytics']
         }
       }
     }

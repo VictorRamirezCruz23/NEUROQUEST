@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { authModalController } from '../../ui/components/AuthModalController.js';
+import { authService } from '../../services/firebase/authService.js';
 
 export class WelcomeScene extends Phaser.Scene {
   constructor() {
@@ -10,6 +12,27 @@ export class WelcomeScene extends Phaser.Scene {
 
     // Crear fondo de rejilla pixel retro / estrellas
     this.createRetroBackground(width, height);
+
+    // Botón de Perfil / Identificación de Cadete (Firebase Auth)
+    const profileBtn = this.add.text(width - 24, 20, `👤 ${authService.getDisplayName()}`, {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      padding: { x: 10, y: 6 }
+    })
+    .setOrigin(1, 0)
+    .setInteractive({ useHandCursor: true });
+
+    profileBtn.on('pointerover', () => profileBtn.setColor('#ffffff'));
+    profileBtn.on('pointerout', () => profileBtn.setColor('#38bdf8'));
+    profileBtn.on('pointerdown', () => authModalController.open());
+
+    authService.onAuthStateChange(() => {
+      if (profileBtn && profileBtn.setText) {
+        profileBtn.setText(`👤 ${authService.getDisplayName()}`);
+      }
+    });
 
     // Título Principal
     const title = this.add.text(width / 2, height * 0.32, 'NEUROQUEST', {

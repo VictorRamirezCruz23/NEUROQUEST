@@ -11,7 +11,7 @@
 | **4** | Motor educativo modular (`EducationEngine`) y Ruta 01 | ✅ Completado |
 | **5** | Diagnóstico inicial y algoritmo de dificultad adaptativa | ✅ Completado |
 | **6** | Evaluaciones de transferencia y retención temporal | ✅ Completado |
-| **7** | Integración con Firebase (Auth y Cloud Firestore) | ⏳ Pendiente de autorización |
+| **7** | Integración con Firebase (Auth y Cloud Firestore) | ✅ Completado |
 | **8** | Integración de backend Gemini API (Cloud Functions) | ⏳ Pendiente de autorización |
 | **9** | Dashboard analítico de aprendizaje individual | ⏳ Pendiente de autorización |
 | **10** | QA integral, seguridad y optimización para entrega | ⏳ Pendiente de autorización |
