@@ -6,6 +6,68 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [0.11.0] - 2026-11-05
+
+### Corregido
+- **Error Crítico de Renderizado de Texto en Combate (`BattleArenaModal.js`):**
+  - Solucionado el fallo `Cannot read properties of null (reading 'drawImage') at Frame2.updateUVs`:
+    - Incorporación de guardas estrictas de ciclo de vida (`if (this.promptText && this.promptText.active && typeof this.promptText.setText === 'function')`).
+    - Cancelación completa de tweens (`tweens.killTweensOf`) y temporizadores pendientes antes de invocar `destroy()` para evitar la corrupción del canvas de Phaser.
+    - Anulación segura de referencias a GameObjects destruidos (`this.promptText = null`, `this.arenaBotSprite = null`, `this.botHpBar = null`).
+- **Fondo Negro al Terminar el Mapa:**
+  - Sustitución de imágenes estáticas fijas por una capa continua en `TileSprite` con parallax infinito sincronizado (`bgTile.tilePositionX = scrollX * 0.35`) y base espacial en profundidad `-200`, garantizando que el fondo nunca se agote ni se oscurezca al cruzar tramos o extender el nivel.
+- **Corrección Definitiva del Spritesheet de MatBot:**
+  - Generación del spritesheet calibrado de 32 fotogramas (1600x800 px, 8 columnas x 4 filas de 200x200 px) en [`public/assets/sprites/matbot_sheet.png`](public/assets/sprites/matbot_sheet.png) y [`src/game/entities/Matbot.png`](src/game/entities/Matbot.png).
+  - Eliminación de frames fantasma, texto o bordes parásitos:
+    - Fila 0 (Frames 0-3): Ciclo Idle.
+    - Fila 1 (Frames 8-15): Ciclo de patrullaje y caminata fluido de 8 pasos.
+    - Fila 2 (Frames 16-21): Secuencia de ataque con puntería, carga y disparo láser.
+    - Fila 3 (Frames 24-29): Secuencia de impacto y desintegración.
+
+### Añadido
+- **Mecánica de Movimiento Agachado (Crouch & Walk):**
+  - En [`Player.js`](src/game/entities/Player.js), el jugador ahora puede desplazarse horizontalmente mientras está agachado (al 65% de velocidad estándar) manteniendo reducida su caja de colisión física a la mitad (120 px de alto) con offset compensado (`body.setOffset(60, 200)`).
+- **Gestor de Audio y Efectos Especiales Espaciales (`SoundManager.js`):**
+  - Implementación del sintetizador nativo de audio espacial [`SoundManager.js`](src/game/audio/SoundManager.js) integrado con `this.sound` y la Web Audio API:
+    - `sfx_laser`: Disparo de energía espacial durante ataques de combate.
+    - `sfx_ambient_drone`: Zumbido espacial continuo de baja frecuencia (55Hz) en bucle permanente.
+    - `sfx_correct`: Timbre cristalino armónico de acierto en desafíos.
+    - `sfx_error`: Glitch y zumbido disonante de respuesta incorrecta.
+    - `sfx_heal`: Onda ascendente de regeneración nanobótica al recoger ítems de vida.
+    - `sfx_hit`: Impacto sordo de daño recibido.
+- **Sistema de Vidas y HUD Gráfico Personalizado (Cabezas del Jugador):**
+  - Icono transparente de la cabeza del cadete [`public/assets/sprites/player_head.png`](public/assets/sprites/player_head.png).
+  - 5 vidas iniciales con cabezas que se atenúan al perder blindaje.
+  - Spawn condicional estricto: Los ítems de vida solo se generan si el jugador tiene 3 vidas o menos.
+- **Mapas Infinitos Condicionados al 80% de Precisión:**
+  - Condición estricta de victoria: El sector no finaliza si la precisión es menor al 80% o no se han librado al menos 2 combates.
+  - En caso de precisión insuficiente, `extendChunk()` extiende el mundo de forma procedural infinita generando nuevos arquetipos, paletas neón estilo *Geometry Dash* y nuevos MatBots.
+
+---
+
+## [0.10.0] - 2026-11-05
+
+### Añadido
+- **Generación Procedural y Aleatoria de Niveles:**
+  - Implementación del generador modular [`LevelGenerator.js`](src/game/procedural/LevelGenerator.js) con catálogo de arquetipos estructurales (`ASCENDING_STEPS`, `SUSPENDED_BRIDGE`, `DOUBLE_TIER_OVERPASS`, `DESCENDING_CANOPY`, `FLOATING_ARCHIPELAGO`, `PYRAMID_ASCENT`, `PILLAR_RUN`).
+  - Restricción estricta de no repetición consecutiva de arquetipos por sector.
+  - Viabilidad física garantizada: distancias horizontales (90-150 px) y verticales (-100 a +90 px) compatibles con el salto y velocidad del jugador.
+  - Meta final clara con bandera de victoria (`victory_flag`) y pantalla de resultados con opción de avanzar al siguiente sector procedural o cambiar de ruta.
+- **Enemigo MatBot y Combate Educativo Interactivo:**
+  - Procesamiento del spritesheet transparente [`public/assets/sprites/matbot_sheet.png`](public/assets/sprites/matbot_sheet.png) y [`src/game/entities/Matbot.png`](src/game/entities/Matbot.png) desde el concepto oficial `MatBot.jpg`.
+  - Animaciones de MatBot: `matbot_idle`, `matbot_walk`, `matbot_attack`, `matbot_hurt`, `matbot_die` registradas en [`PreloadScene.js`](src/game/scenes/PreloadScene.js).
+  - Entidad enemiga [`MatBot.js`](src/game/entities/MatBot.js) con máquina de estados (Patrulla, Persecución, Ataque, Combate, Derrota).
+  - Mecánica de combate por preguntas: al ejecutar el ataque, se activa un duelo en [`ChallengeModal.js`](src/ui/components/ChallengeModal.js) con preguntas del banco curricular.
+  - Victoria: neutraliza y destruye a MatBot con partículas de desintegración al responder correctamente.
+  - Derrota: descuenta 1 vida al jugador de un total de 5 vidas si falla.
+- **Sistema de Vidas y Coleccionable de Recuperación:**
+  - Sistema de 5 vidas iniciales con medidor visual de corazones en el HUD (`❤️ ❤️ ❤️ ❤️ ❤️`).
+  - Ítem coleccionable de recuperación (`item_health` - Cápsula Nanobótica) distribuido aleatoriamente en el mapa.
+  - Al recogerlo, activa una pregunta curricular: responder bien recupera 1 vida (hasta el tope de 5).
+  - Modal de Game Over con opción de reintentar el sector restaurando las 5 vidas completas.
+
+---
+
 ## [0.9.0] - 2026-11-04
 
 ### Añadido

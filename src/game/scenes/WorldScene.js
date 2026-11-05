@@ -1,9 +1,14 @@
 import Phaser from 'phaser';
 import { Player } from '../entities/Player.js';
+import { MatBot } from '../entities/MatBot.js';
+import { LevelGenerator, NEON_THEMES } from '../procedural/LevelGenerator.js';
 import { sessionState } from '../../core/sessionState.js';
 import { DeviceDetector } from '../../utils/deviceDetector.js';
 import { VirtualControls } from '../../ui/components/VirtualControls.js';
 import { ChallengeModal } from '../../ui/components/ChallengeModal.js';
+import { BattleArenaModal } from '../../ui/components/BattleArenaModal.js';
+import { TheoryConsoleModal } from '../../ui/components/TheoryConsoleModal.js';
+import { SoundManager } from '../audio/SoundManager.js';
 import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { DiagnosticManager } from '../../education/assessments/DiagnosticManager.js';
 import { DIFFICULTY_LABELS } from '../../education/adaptive/AdaptiveEngine.js';
@@ -11,12 +16,14 @@ import { authModalController } from '../../ui/components/AuthModalController.js'
 import { authService } from '../../services/firebase/authService.js';
 
 /**
- * Escena del Mundo Interactivo y Plataformas 2D de NEUROQUEST.
- * Carga el fondo oficial y adapta mecánicas para las 4 rutas:
- * L  -> bg_logic_math (Núcleo de Lógica)
- * CM -> bg_computational (Circuitos Mentales)
- * AC -> bg_reading (Archivo del Conocimiento)
- * E  -> bg_strategic (Dimensión Estratégica)
+ * WorldScene.js — Escena del Mundo Interactivo y Plataformas 2D de NEUROQUEST.
+ * Incorpora:
+ * 1. Generación procedural por tramos con variaciones estéticas neón estilo Geometry Dash.
+ * 2. Enemigo MatBot con animaciones limpias y combate retro estilo Pokémon.
+ * 3. HUD gráfico personalizado con cabezas de jugador (5 vidas) y spawn condicional (vidas <= 3).
+ * 4. Consolas interactivas de teoría y pistas conceptuales.
+ * 5. Infinitud de mapa basada en el requisito estricto del 80% de precisión mínima.
+ * 6. Acción física de agacharse (crouch) y controles táctiles avanzados.
  */
 export class WorldScene extends Phaser.Scene {
   constructor() {
@@ -29,68 +36,112 @@ export class WorldScene extends Phaser.Scene {
     }
     this.meta = sessionState.getActiveCompetencyMeta();
     this.isTransitioning = false;
-    console.log(`[WorldScene] Inicializada para ${this.meta.name} [${this.meta.code}]`);
+    this.isGameOver = false;
+    this.isVictory = false;
+
+    // Sistema de Vidas (5 vidas iniciales)
+    this.maxLives = 5;
+    this.lives = (data && typeof data.lives === 'number') ? data.lives : 5;
+    this.enemiesDefeated = (data && typeof data.enemiesDefeated === 'number') ? data.enemiesDefeated : 0;
+    this.sectorNumber = (data && typeof data.sectorNumber === 'number') ? data.sectorNumber : 1;
+
+    // Métricas de combate y precisión del sector (Meta: Mínimo 80%)
+    this.combatTotalQuestions = (data && typeof data.combatTotalQuestions === 'number') ? data.combatTotalQuestions : 0;
+    this.combatCorrectAnswers = (data && typeof data.combatCorrectAnswers === 'number') ? data.combatCorrectAnswers : 0;
+    this.themeIndex = (data && typeof data.themeIndex === 'number') ? data.themeIndex : 0;
+    this.lastArchetypeId = null;
+    this.chunksCount = 1;
+
+    this.matbots = [];
+    this.activeModals = [];
+
+    console.log(`[WorldScene] Inicializada para ${this.meta.name} [Sector ${this.sectorNumber} • Vidas: ${this.lives}]`);
   }
 
   create() {
-    const worldWidth = 2400;
+    const worldWidth = 2600;
     const worldHeight = 540;
+    this.worldWidth = worldWidth;
+    this.worldHeight = worldHeight;
 
-    // Resetear efectos residuales de fade y transicionar suavemente
+    // Resetear efectos residuales de cámara
     this.cameras.main.resetFX();
     this.cameras.main.fadeIn(350, 10, 12, 22);
 
-    // 1. Configurar límites físicos del mundo
+    // 1. Límites físicos del mundo
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
-    // 2. Fondo ambiental oficial de la competencia
+    // 1b. Gestor de audio espacial procedural y ambiental
+    this.soundManager = new SoundManager(this);
+    this.soundManager.startAmbientDrone();
+
+    // 2. Fondo ambiental con parallax infinito (sin pantallas negras)
     this.createAtmosphere(worldWidth, worldHeight);
 
-    // 3. Crear suelo y plataformas colisionables alineadas con el fondo
-    this.createWorldGeometry(worldWidth, worldHeight);
+    // 3. Generación procedural aleatoria de geometría, enemigos, ítems y meta
+    this.buildProceduralLevel(worldWidth, worldHeight);
 
-    // 4. Instanciar jugador con su spritesheet
-    this.player = new Player(this, 140, 380);
+    // 4. Instanciar al jugador (Cadete)
+    this.player = new Player(this, 120, 360);
 
-    // 5. Configurar colisiones físicas
+    // 5. Configurar colisiones del jugador con el entorno
     this.physics.add.collider(this.player, this.platforms);
 
-    // 6. Colocar terminales y puntos de interés interactivos
-    this.createInteractiveTerminals();
+    // 6. Configurar colisiones de los MatBots con las plataformas
+    if (this.matbotGroup) {
+      this.physics.add.collider(this.matbotGroup, this.platforms);
+    }
 
-    // 7. Configurar cámara dinámica con seguimiento suave
+    // 7. Colisión / Recogida de Ítems de Recuperación de Vida
+    if (this.healthItemGroup) {
+      this.physics.add.overlap(this.player, this.healthItemGroup, (player, item) => {
+        this.handleHealthItemPickup(item);
+      });
+    }
+
+    // 8. Colisión con la Meta de Victoria
+    if (this.victoryGoal) {
+      this.physics.add.overlap(this.player, this.victoryGoal, () => {
+        this.handleVictoryGoal();
+      });
+    }
+
+    // 9. Configurar cámara con seguimiento suave
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
 
-    // 8. Crear interfaz de usuario (HUD) superpuesta (objetos planos sin anidar)
+    // 10. HUD de estado (Identidad, Nivel, Vidas con cabezas del jugador, Precisión 80%)
     this.createHUD();
 
-    // 9. Crear modal de desafíos educativos
+    // 11. Modal interactivo de preguntas y desafíos
     this.challengeModal = new ChallengeModal(this, this.player);
 
-    // 10. Detección de dispositivo (Móvil vs. Computadora)
+    // 12. Modal de combate táctico retro estilo Pokémon
+    this.battleArena = new BattleArenaModal(this, this.player);
+
+    // 13. Terminal de transmisión teórica y pistas conceptuales
+    this.theoryModal = new TheoryConsoleModal(this, this.player);
+
+    // 14. Detección de dispositivo (Móvil vs. PC) y controles táctiles
     this.isMobile = DeviceDetector.isMobile();
     if (this.isMobile) {
       DeviceDetector.requestLandscape();
       this.virtualControls = new VirtualControls(this, this.player);
     }
 
-    // 11. Escuchar eventos de interacción y cambio de disciplina
+    // 15. Listeners de teclado y eventos
     this.setupEventListeners();
   }
 
   setupEventListeners() {
-    // Tecla M para abrir selector de competencias
     this.input.keyboard.on('keydown-M', () => {
       this.goToCompetencySelector();
     });
 
-    // Tecla B para abrir dashboard de telemetría y métricas
     this.input.keyboard.on('keydown-B', () => {
       this.openDashboard();
     });
 
-    // Eventos disparados por controles táctiles o HUD
     this.events.on('touch-interact', () => {
       this.handleTerminalInteraction();
     });
@@ -99,97 +150,121 @@ export class WorldScene extends Phaser.Scene {
       this.goToCompetencySelector();
     });
 
-    // Limpieza de eventos al cambiar de escena
+    this.events.on('touch-open-dashboard', () => {
+      this.openDashboard();
+    });
+
     this.events.once('shutdown', () => {
       this.events.off('touch-interact');
       this.events.off('touch-switch-route');
+      this.events.off('touch-open-dashboard');
+      if (this.authUnsubscribe) {
+        this.authUnsubscribe();
+        this.authUnsubscribe = null;
+      }
       if (this.virtualControls) {
         this.virtualControls.destroy();
         this.virtualControls = null;
+      }
+      if (this.battleArena) {
+        this.battleArena.destroy();
+        this.battleArena = null;
+      }
+      if (this.theoryModal) {
+        this.theoryModal.destroy();
+        this.theoryModal = null;
+      }
+      if (this.soundManager) {
+        this.soundManager.destroy();
+        this.soundManager = null;
       }
     });
   }
 
   createAtmosphere(worldWidth, worldHeight) {
-    // Renderizar fondo oficial pixel art si está cargado en caché
-    if (this.textures.exists(this.meta.bgKey)) {
-      const bg1 = this.add.image(0, 0, this.meta.bgKey).setOrigin(0, 0);
-      bg1.setDisplaySize(1200, worldHeight);
+    const { width, height } = this.scale;
 
-      const bg2 = this.add.image(1200, 0, this.meta.bgKey).setOrigin(0, 0);
-      bg2.setDisplaySize(1200, worldHeight);
-    } else {
-      const bgGfx = this.add.graphics();
-      bgGfx.fillStyle(0x070912, 1);
-      bgGfx.fillRect(0, 0, worldWidth, worldHeight);
+    // 1. Telón de fondo espacial permanente a profundidad absoluta -200 (garantiza cero fondos negros)
+    this.add.rectangle(0, 0, width, height, 0x050713, 1)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(-200);
+
+    // 2. Capa de fondo temática en TileSprite infinito con escala proporcional (elimina zoom excesivo)
+    if (this.textures.exists(this.meta.bgKey)) {
+      const srcImg = this.textures.get(this.meta.bgKey).getSourceImage();
+      const naturalHeight = srcImg.height || 1536;
+      const scaleRatio = height / naturalHeight;
+      this.bgScaleRatio = scaleRatio;
+
+      this.bgTile = this.add.tileSprite(0, 0, width, height, this.meta.bgKey)
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(-100);
+      this.bgTile.setTileScale(scaleRatio, scaleRatio);
     }
 
-    // Partículas ambientales tintadas con el color de la competencia activa
-    for (let i = 0; i < 90; i++) {
-      const px = Phaser.Math.Between(0, worldWidth);
-      const py = Phaser.Math.Between(0, worldHeight - 120);
+    // 3. Partículas y estrellas cósmicas flotantes con profundidad espacial
+    this.ambientParticles = [];
+    for (let i = 0; i < 75; i++) {
+      const px = Phaser.Math.Between(0, width);
+      const py = Phaser.Math.Between(0, height);
       const size = Phaser.Math.Between(1, 3);
       const alpha = Phaser.Math.FloatBetween(0.25, 0.75);
 
-      const dot = this.add.rectangle(px, py, size, size, this.meta.primaryColor, alpha);
+      const star = this.add.rectangle(px, py, size, size, this.meta.primaryColor || 0x38bdf8, alpha)
+        .setScrollFactor(Phaser.Math.FloatBetween(0.04, 0.18))
+        .setDepth(-80);
+
       this.tweens.add({
-        targets: dot,
-        y: py - Phaser.Math.Between(10, 25),
-        alpha: alpha * 0.3,
+        targets: star,
+        alpha: alpha * 0.25,
         duration: Phaser.Math.Between(2200, 4800),
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
       });
+      this.ambientParticles.push(star);
     }
   }
 
-  createWorldGeometry(worldWidth, worldHeight) {
-    this.platforms = this.physics.add.staticGroup();
-
-    // Suelo sólido continuo alineado con el arte ilustrado (Y = 430 px)
-    const groundY = 430;
-    for (let x = 0; x < worldWidth; x += 32) {
-      const tile = this.platforms.create(x + 16, groundY + 16, 'tile_ground');
-      tile.setVisible(false);
-      tile.refreshBody();
-    }
-
-    // Plataformas flotantes elevadas adicionales para exploración vertical
-    const platformData = [
-      { x: 380, y: 310, length: 4 },
-      { x: 620, y: 230, length: 5 },
-      { x: 1040, y: 300, length: 4 },
-      { x: 1380, y: 320, length: 5 },
-      { x: 1680, y: 220, length: 6 },
-      { x: 2020, y: 310, length: 5 }
-    ];
-
-    platformData.forEach(p => {
-      for (let i = 0; i < p.length; i++) {
-        const px = p.x + (i * 32) + 16;
-        const tile = this.platforms.create(px, p.y + 16, 'tile_platform');
-        tile.refreshBody();
-      }
+  /**
+   * Genera el mapa procedimental garantizando diversidad estructural, ruta viable y entidades.
+   */
+  buildProceduralLevel(worldWidth, worldHeight) {
+    const levelData = LevelGenerator.generateLevel({
+      worldWidth,
+      worldHeight,
+      groundY: 430,
+      playerLives: this.lives,
+      themeIndex: this.themeIndex,
+      lastArchetypeId: this.lastArchetypeId
     });
-  }
 
-  createInteractiveTerminals() {
+    this.lastArchetypeId = levelData.lastArchetypeId;
+    this.activeTheme = levelData.theme || NEON_THEMES[0];
+
+    // 1. Plataformas físicas estáticas (el suelo añadido es invisible para preservar el piso original)
+    this.platforms = this.physics.add.staticGroup();
+    levelData.platforms.forEach(p => {
+      const tile = this.platforms.create(p.x, p.y, p.texture);
+      if (p.isGround || p.visible === false) {
+        tile.setVisible(false);
+      } else if (levelData.theme?.primary) {
+        tile.setTint(levelData.theme.primary);
+      }
+      tile.refreshBody();
+    });
+
+    // 2. Terminales interactivas
     this.terminals = this.physics.add.staticGroup();
+    levelData.terminals.forEach(t => {
+      const term = this.terminals.create(t.x, t.y, 'terminal_device');
+      term.setData('type', t.type);
+      term.refreshBody();
 
-    // Terminal educativa 1: Entrada y Diagnóstico del Sector
-    const t1 = this.terminals.create(890, 398, 'terminal_device');
-    t1.setData('type', 'standard');
-    t1.refreshBody();
-
-    // Terminal educativa 2: Plataforma de Misiones Avanzadas (Transferencia y Retención)
-    const t2 = this.terminals.create(1780, 188, 'terminal_device');
-    t2.setData('type', 'transfer_retention');
-    t2.refreshBody();
-
-    [t1, t2].forEach(terminal => {
       this.tweens.add({
-        targets: terminal,
+        targets: term,
         alpha: 0.85,
         duration: 1200,
         yoyo: true,
@@ -198,7 +273,7 @@ export class WorldScene extends Phaser.Scene {
       });
     });
 
-    // Texto flotante de interacción (en espacio de mundo sobre la terminal)
+    // Prompt flotante para terminales
     this.interactionPrompt = this.add.text(0, 0, '[E] Acceder a Terminal', {
       fontFamily: 'monospace',
       fontSize: '12px',
@@ -210,18 +285,154 @@ export class WorldScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(500).setVisible(false);
 
     this.keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+
+    // 3. Enemigos robóticos MatBot
+    this.matbotGroup = this.physics.add.group();
+    this.matbots = [];
+
+    levelData.matbots.forEach(m => {
+      const bot = new MatBot(this, m.x, m.y, { patrolRange: m.patrolRange });
+      this.matbotGroup.add(bot);
+      this.matbots.push(bot);
+    });
+
+    // 4. Ítems coleccionables de Recuperación de Vida (Condicionales a vidas <= 3)
+    this.healthItemGroup = this.physics.add.staticGroup();
+    levelData.healthItems.forEach(h => {
+      const item = this.healthItemGroup.create(h.x, h.y, 'item_health');
+      item.refreshBody();
+
+      this.tweens.add({
+        targets: item,
+        y: h.y - 6,
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    });
+
+    // 5. Meta Final Clara de Victoria (Bandera / Baliza)
+    this.victoryGoal = this.physics.add.staticSprite(levelData.victoryGoal.x, levelData.victoryGoal.y, 'victory_flag');
+    this.victoryGoal.refreshBody();
+
+    this.tweens.add({
+      targets: this.victoryGoal,
+      alpha: 0.88,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  /**
+   * Extiende el mapa de forma procedural e infinita cuando el jugador no alcanza el 80% de precisión.
+   */
+  extendChunk() {
+    this.chunksCount++;
+    this.themeIndex++;
+    const nextTheme = NEON_THEMES[this.themeIndex % NEON_THEMES.length];
+    this.activeTheme = nextTheme;
+
+    const chunkLength = 2200;
+    const chunkStartX = this.worldWidth;
+    const newWorldWidth = this.worldWidth + chunkLength;
+    this.worldWidth = newWorldWidth;
+
+    // Actualizar límites físicos y de seguimiento de cámara
+    this.physics.world.setBounds(0, 0, newWorldWidth, this.worldHeight);
+    this.cameras.main.setBounds(0, 0, newWorldWidth, this.worldHeight);
+
+    // Generar nuevo tramo procedural con la nueva paleta neón
+    const chunkData = LevelGenerator.generateChunk({
+      startX: chunkStartX,
+      length: chunkLength,
+      groundY: 430,
+      playerLives: this.lives,
+      themeIndex: this.themeIndex,
+      lastArchetypeId: this.lastArchetypeId
+    });
+    this.lastArchetypeId = chunkData.lastArchetypeId;
+
+    // 1. Agregar plataformas del nuevo tramo (suelo añadido invisible)
+    chunkData.platforms.forEach(p => {
+      const tile = this.platforms.create(p.x, p.y, p.texture);
+      if (p.isGround || p.visible === false) {
+        tile.setVisible(false);
+      } else if (chunkData.theme?.primary) {
+        tile.setTint(chunkData.theme.primary);
+      }
+      tile.refreshBody();
+    });
+
+    // 2. Agregar nuevas consolas / terminales
+    chunkData.consoles.forEach(t => {
+      const term = this.terminals.create(t.x, t.y, 'terminal_device');
+      term.setData('type', t.type);
+      term.refreshBody();
+      this.tweens.add({
+        targets: term,
+        alpha: 0.85,
+        duration: 1200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    });
+
+    // 3. Spawn de nuevos MatBots
+    chunkData.matbots.forEach(m => {
+      const bot = new MatBot(this, m.x, m.y, { patrolRange: m.patrolRange });
+      this.matbotGroup.add(bot);
+      this.matbots.push(bot);
+    });
+
+    // 4. Spawn condicional de ítems de vida
+    chunkData.healthItems.forEach(h => {
+      const item = this.healthItemGroup.create(h.x, h.y, 'item_health');
+      item.refreshBody();
+      this.tweens.add({
+        targets: item,
+        y: h.y - 6,
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    });
+
+    // 5. Mover meta al nuevo final
+    if (this.victoryGoal) {
+      this.victoryGoal.setPosition(chunkData.victoryGoal.x, chunkData.victoryGoal.y);
+      this.victoryGoal.refreshBody();
+    }
+
+    // Destello cromático según el nuevo tema neón (estilo Geometry Dash)
+    const tintColor = nextTheme.primary;
+    const r = (tintColor >> 16) & 0xff;
+    const g = (tintColor >> 8) & 0xff;
+    const b = tintColor & 0xff;
+    this.cameras.main.flash(350, r, g, b);
+
+    this.showFloatingNotice(
+      this.player.x,
+      this.player.y - 85,
+      `🌌 CAMBIO DE FASE: ${nextTheme.name.toUpperCase()}`,
+      nextTheme.primaryHex
+    );
   }
 
   createHUD() {
     const baseDepth = 1500;
     const { width, height } = this.scale;
 
-    // 1. Barra superior izquierda de identidad
+    // Panel Identidad (Izquierda)
     const topBar = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
     topBar.fillStyle(0x0f172a, 0.92);
-    topBar.fillRoundedRect(16, 14, 440, 48, 6);
+    topBar.fillRoundedRect(16, 14, 380, 48, 6);
     topBar.lineStyle(2, this.meta.primaryColor, 0.85);
-    topBar.strokeRoundedRect(16, 14, 440, 48, 6);
+    topBar.strokeRoundedRect(16, 14, 380, 48, 6);
 
     const badge = this.add.graphics().setScrollFactor(0).setDepth(baseDepth + 1);
     badge.fillStyle(this.meta.badgeBg, 1);
@@ -236,9 +447,9 @@ export class WorldScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
 
-    this.add.text(68, 20, `MUNDO ${this.meta.worldNumber}: ${this.meta.name.toUpperCase()}`, {
+    this.add.text(68, 20, `MUNDO ${this.meta.worldNumber}: ${this.meta.name.toUpperCase()} (S${this.sectorNumber})`, {
       fontFamily: 'monospace',
-      fontSize: '12px',
+      fontSize: '11px',
       color: this.meta.primaryColorHex,
       fontStyle: 'bold'
     }).setScrollFactor(0).setDepth(baseDepth + 2);
@@ -251,10 +462,48 @@ export class WorldScene extends Phaser.Scene {
 
     this.updateHUDLevel();
 
-    // 2. Botón superior derecho "CAMBIAR RUTA [M]" (DIRECTO EN PANTALLA, NO ANIDADO)
-    const btnX = width - 95;
+    // Medidor Central de Vidas con iconos gráficos de la cabeza del jugador (player_head.png)
+    const livesBox = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
+    livesBox.fillStyle(0x0f172a, 0.92);
+    livesBox.fillRoundedRect(width / 2 - 130, 10, 260, 54, 6);
+    livesBox.lineStyle(2, 0x38bdf8, 0.85);
+    livesBox.strokeRoundedRect(width / 2 - 130, 10, 260, 54, 6);
+
+    this.livesLabel = this.add.text(width / 2, 20, 'BLINDAJE DE ENERGÍA', {
+      fontFamily: 'monospace',
+      fontSize: '9px',
+      color: '#94a3b8',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    this.lifeHeadIcons = [];
+    const headSpacing = 28;
+    const startHeadX = (width / 2) - ((this.maxLives - 1) * headSpacing) / 2;
+    for (let i = 0; i < this.maxLives; i++) {
+      const hx = startHeadX + (i * headSpacing);
+      const icon = this.add.image(hx, 42, 'player_head')
+        .setDisplaySize(22, 22)
+        .setScrollFactor(0)
+        .setDepth(baseDepth + 2);
+      this.lifeHeadIcons.push(icon);
+    }
+
+    // Indicador de Precisión en Combate (Mínimo 80% para desbloquear la victoria)
+    this.accuracyDisplay = this.add.text(width / 2, 74, '🎯 PRECISIÓN: --% (MÍNIMO 80%)', {
+      fontFamily: 'monospace',
+      fontSize: '10px',
+      color: '#fbbf24',
+      fontStyle: 'bold',
+      backgroundColor: 'rgba(15, 23, 42, 0.92)',
+      padding: { x: 8, y: 3 }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    this.updateLivesHUD();
+
+    // Botón Superior Derecho "CAMBIAR RUTA [M]"
+    const btnX = width - 85;
     const btnY = 38;
-    const btnW = 160;
+    const btnW = 140;
     const btnH = 34;
 
     const changeBg = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
@@ -267,7 +516,7 @@ export class WorldScene extends Phaser.Scene {
     };
     drawChangeBtn(false);
 
-    this.add.text(btnX, btnY, 'CAMBIAR RUTA [M]', {
+    this.add.text(btnX, btnY, 'RUTAS [M]', {
       fontFamily: 'monospace',
       fontSize: '11px',
       color: '#ffffff',
@@ -283,53 +532,8 @@ export class WorldScene extends Phaser.Scene {
     changeHit.on('pointerout', () => drawChangeBtn(false));
     changeHit.on('pointerdown', () => this.goToCompetencySelector());
 
-    // 3. Botón para alternar controles táctiles en pantalla (separado con margen seguro)
-    const toggleTouchBtn = this.add.text(width - 235, 38, this.isMobile ? '📱 Táctil' : '🖥️ PC', {
-      fontFamily: 'monospace',
-      fontSize: '11px',
-      color: '#38bdf8',
-      backgroundColor: 'rgba(15, 23, 42, 0.85)',
-      padding: { x: 8, y: 6 }
-    })
-    .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(baseDepth + 1)
-    .setInteractive({ useHandCursor: true });
-
-    toggleTouchBtn.on('pointerdown', () => {
-      if (this.virtualControls) {
-        this.virtualControls.destroy();
-        this.virtualControls = null;
-        toggleTouchBtn.setText('🖥️ PC');
-      } else {
-        this.virtualControls = new VirtualControls(this, this.player);
-        toggleTouchBtn.setText('📱 Táctil');
-      }
-    });
-
-    // 4. Botón de Perfil / Nube de Cadete (Firebase Auth & Firestore)
-    const profileBtn = this.add.text(width - 340, 38, `👤 ${authService.getDisplayName()}`, {
-      fontFamily: 'monospace',
-      fontSize: '11px',
-      color: '#38bdf8',
-      backgroundColor: 'rgba(15, 23, 42, 0.85)',
-      padding: { x: 8, y: 6 }
-    })
-    .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(baseDepth + 1)
-    .setInteractive({ useHandCursor: true });
-
-    profileBtn.on('pointerdown', () => authModalController.open());
-
-    authService.onAuthStateChange(() => {
-      if (profileBtn && profileBtn.setText) {
-        profileBtn.setText(`👤 ${authService.getDisplayName()}`);
-      }
-    });
-
-    // 5. Botón de Métricas / Dashboard de Aprendizaje [B]
-    const metricsBtn = this.add.text(width - 435, 38, '📊 Métricas [B]', {
+    // Botón Métricas [B]
+    const metricsBtn = this.add.text(width - 200, 38, '📊 Métricas [B]', {
       fontFamily: 'monospace',
       fontSize: '11px',
       color: '#38bdf8',
@@ -343,11 +547,32 @@ export class WorldScene extends Phaser.Scene {
 
     metricsBtn.on('pointerdown', () => this.openDashboard());
 
-    // 6. Panel de controles inferior
+    // Botón Perfil
+    const profileBtn = this.add.text(width - 305, 38, `👤 ${authService.getDisplayName()}`, {
+      fontFamily: 'monospace',
+      fontSize: '10px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+      padding: { x: 8, y: 6 }
+    })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 1)
+    .setInteractive({ useHandCursor: true });
+
+    profileBtn.on('pointerdown', () => authModalController.open());
+
+    this.authUnsubscribe = authService.onAuthStateChange(() => {
+      if (profileBtn && profileBtn.setText) {
+        profileBtn.setText(`👤 ${authService.getDisplayName()}`);
+      }
+    });
+
+    // Barra informativa inferior
     this.add.text(
       width / 2,
       height - 18,
-      'Controles: [A/D] Correr • [W/Espacio] Saltar • [E] Terminal • [B] Métricas • [M] Cambiar Ruta',
+      'Controles: [A/D] Correr • [W/Espacio] Saltar • [J] Golpe • [E] Terminal • [B] Métricas • Meta al final ➔',
       {
         fontFamily: 'monospace',
         fontSize: '11px',
@@ -358,6 +583,44 @@ export class WorldScene extends Phaser.Scene {
     ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth);
   }
 
+  updateLivesHUD() {
+    if (this.lifeHeadIcons && this.lifeHeadIcons.length > 0) {
+      this.lifeHeadIcons.forEach((icon, idx) => {
+        if (idx < this.lives) {
+          icon.setVisible(true);
+          icon.setAlpha(1.0);
+          icon.clearTint();
+        } else {
+          icon.setVisible(true);
+          icon.setAlpha(0.25);
+          icon.setTint(0x475569);
+        }
+      });
+    }
+
+    if (this.livesLabel) {
+      this.livesLabel.setText(`BLINDAJE DE ENERGÍA (${this.lives}/${this.maxLives})`);
+    }
+
+    this.updateAccuracyHUD();
+  }
+
+  updateAccuracyHUD() {
+    if (!this.accuracyDisplay) return;
+    const total = this.combatTotalQuestions;
+    const correct = this.combatCorrectAnswers;
+
+    if (total === 0) {
+      this.accuracyDisplay.setText('🎯 PRECISIÓN EN COMBATE: --% (MÍNIMO 80%) [0/0]');
+      this.accuracyDisplay.setColor('#fbbf24');
+    } else {
+      const acc = Math.round((correct / total) * 100);
+      const passed = acc >= 80;
+      this.accuracyDisplay.setText(`🎯 PRECISIÓN EN COMBATE: ${acc}% (MÍNIMO 80%) [${correct}/${total}] ${passed ? '✓ LISTO' : '✗ EXTENDIENDO'}`);
+      this.accuracyDisplay.setColor(passed ? '#34d399' : '#f87171');
+    }
+  }
+
   updateHUDLevel() {
     if (!this.levelText) return;
     try {
@@ -365,28 +628,423 @@ export class WorldScene extends Phaser.Scene {
       const needsDiag = DiagnosticManager && typeof DiagnosticManager.needsDiagnostic === 'function' && DiagnosticManager.needsDiagnostic(compId);
 
       if (needsDiag) {
-        this.levelText.setText(`${this.meta.discipline} • EVALUACIÓN DIAGNÓSTICA`);
+        this.levelText.setText(`${this.meta.discipline} • DIAGNÓSTICO`);
         this.levelText.setColor('#fbbf24');
       } else {
         const lvl = educationEngine.getCurrentLevel(compId);
         const label = DIFFICULTY_LABELS[lvl] || `Nivel ${lvl}`;
-        const metrics = educationEngine.getLearningMetrics(compId);
-
-        let extraStats = '';
-        if (metrics) {
-          if (metrics.transfer && metrics.transfer.evaluated > 0) {
-            extraStats += ` • Transf: ${metrics.transfer.rate}%`;
-          }
-          if (metrics.retention && metrics.retention.evaluated > 0) {
-            extraStats += ` • Retenc: ${metrics.retention.index}%`;
-          }
-        }
-
-        this.levelText.setText(`${this.meta.discipline} • ${label}${extraStats}`);
+        this.levelText.setText(`${this.meta.discipline} • ${label}`);
         this.levelText.setColor('#38bdf8');
       }
     } catch (err) {
-      console.warn('[WorldScene] Error al actualizar HUD de nivel:', err);
+      console.warn('[WorldScene] Error al actualizar HUD:', err);
+    }
+  }
+
+  /**
+   * Inicia el combate interactivo estilo Pokémon frente a frente con el MatBot.
+   * @param {MatBot} matbot
+   */
+  startCombatDuel(matbot) {
+    if (this.isGameOver || this.isVictory || !matbot || !matbot.isAlive) return;
+
+    if (this.battleArena && !this.battleArena.isOpen) {
+      this.battleArena.startBattle({
+        matbot,
+        onCombatResult: (isCorrect, challenge, bot) => {
+          this.combatTotalQuestions++;
+
+          if (isCorrect) {
+            this.combatCorrectAnswers++;
+            this.enemiesDefeated++;
+            if (bot && typeof bot.playDefeat === 'function') {
+              bot.playDefeat(() => {
+                this.showFloatingNotice(this.player.x, this.player.y - 60, '⚔️ ¡MATBOT DESTRUIDO!', '#34d399');
+              });
+            }
+          } else {
+            this.damagePlayer(1);
+            if (bot && typeof bot.setCooldown === 'function') {
+              bot.setCooldown(3500);
+            }
+          }
+
+          this.updateAccuracyHUD();
+        }
+      });
+    }
+  }
+
+  /**
+   * Maneja la interacción con el ítem de recuperación de vida.
+   * @param {Phaser.Physics.Arcade.Sprite} item
+   */
+  handleHealthItemPickup(item) {
+    if (this.isGameOver || this.isVictory || !item || !item.active) return;
+
+    // Desactivar temporalmente el cuerpo para evitar múltiples colisiones
+    item.body.enable = false;
+
+    if (this.challengeModal && !this.challengeModal.isOpen) {
+      if (this.player) this.player.freeze();
+
+      this.challengeModal.open({
+        mode: 'recovery',
+        healthItem: item,
+        onRecoveryResult: (isCorrect, challenge, hItem) => {
+          if (isCorrect) {
+            this.healPlayer(1);
+            if (this.soundManager) {
+              this.soundManager.playHeal();
+            }
+            this.showFloatingNotice(this.player.x, this.player.y - 60, '💖 +1 VIDA RESTAURADA', '#10b981');
+            if (hItem) {
+              this.tweens.add({
+                targets: hItem,
+                scaleX: 1.5,
+                scaleY: 1.5,
+                alpha: 0,
+                duration: 400,
+                onComplete: () => hItem.destroy()
+              });
+            }
+          } else {
+            this.showFloatingNotice(this.player.x, this.player.y - 60, '⚠️ SINTONIZACIÓN FALLIDA', '#f59e0b');
+            if (hItem) {
+              hItem.setTint(0x64748b);
+              this.tweens.add({
+                targets: hItem,
+                alpha: 0.2,
+                duration: 800,
+                onComplete: () => hItem.destroy()
+              });
+            }
+          }
+        }
+      });
+    }
+  }
+
+  /**
+   * Aplica daño al jugador y verifica el estado de Game Over.
+   * @param {number} amount
+   */
+  damagePlayer(amount = 1) {
+    this.lives = Math.max(0, this.lives - amount);
+    this.updateLivesHUD();
+
+    if (this.soundManager) {
+      this.soundManager.playHit();
+    }
+
+    // Destello rojo de cámara
+    this.cameras.main.flash(300, 239, 68, 68);
+
+    // Parpadeo de invulnerabilidad
+    if (this.player) {
+      this.tweens.add({
+        targets: this.player,
+        alpha: 0.3,
+        duration: 100,
+        yoyo: true,
+        repeat: 5,
+        onComplete: () => {
+          if (this.player) this.player.setAlpha(1);
+        }
+      });
+    }
+
+    if (this.lives <= 0) {
+      this.time.delayedCall(450, () => {
+        this.triggerGameOver();
+      });
+    }
+  }
+
+  /**
+   * Recupera vidas del jugador hasta el tope de 5.
+   * @param {number} amount
+   */
+  healPlayer(amount = 1) {
+    if (this.lives < this.maxLives) {
+      this.lives = Math.min(this.maxLives, this.lives + amount);
+      this.updateLivesHUD();
+      this.cameras.main.flash(250, 16, 185, 129);
+    }
+  }
+
+  showFloatingNotice(x, y, text, color = '#38bdf8') {
+    const notice = this.add.text(x, y, text, {
+      fontFamily: 'monospace',
+      fontSize: '12px',
+      color,
+      fontStyle: 'bold',
+      backgroundColor: 'rgba(15, 23, 42, 0.92)',
+      padding: { x: 8, y: 4 }
+    }).setOrigin(0.5).setDepth(2100);
+
+    this.tweens.add({
+      targets: notice,
+      y: y - 35,
+      alpha: 0,
+      duration: 1400,
+      ease: 'Power2',
+      onComplete: () => notice.destroy()
+    });
+  }
+
+  /**
+   * Dispara el fin del juego al agotarse las 5 vidas.
+   */
+  triggerGameOver() {
+    if (this.isGameOver) return;
+    this.isGameOver = true;
+
+    if (this.player) this.player.freeze();
+    if (this.challengeModal && this.challengeModal.isOpen) {
+      this.challengeModal.close();
+    }
+
+    const { width, height } = this.scale;
+    const baseDepth = 3000;
+
+    const overlay = this.add.rectangle(0, 0, width, height, 0x05070f, 0.92)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(baseDepth)
+      .setInteractive();
+
+    const boxW = 540;
+    const boxH = 280;
+    const boxX = (width - boxW) / 2;
+    const boxY = (height - boxH) / 2;
+
+    const boxGfx = this.add.graphics().setScrollFactor(0).setDepth(baseDepth + 1);
+    boxGfx.fillStyle(0x0f172a, 0.98);
+    boxGfx.fillRoundedRect(boxX, boxY, boxW, boxH, 10);
+    boxGfx.lineStyle(2, 0xef4444, 1);
+    boxGfx.strokeRoundedRect(boxX, boxY, boxW, boxH, 10);
+
+    this.add.text(width / 2, boxY + 45, '💀 SISTEMA COGNITIVO DESACTIVADO', {
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      color: '#ef4444',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    this.add.text(
+      width / 2,
+      boxY + 95,
+      `Has perdido las 5 vidas del sector en ${this.meta.name}.\nRevisa las pistas educativas y recalibra tu blindaje para volver a intentarlo.`,
+      {
+        fontFamily: 'Segoe UI',
+        fontSize: '13px',
+        color: '#cbd5e1',
+        align: 'center',
+        wordWrap: { width: boxW - 50 }
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    this.add.text(width / 2, boxY + 155, `MatBots neutralizados: ${this.enemiesDefeated}`, {
+      fontFamily: 'monospace',
+      fontSize: '12px',
+      color: '#38bdf8'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    // Botón Reintentar Sector (Restaura 5 vidas)
+    const retryBtn = this.add.text(width / 2, boxY + 220, 'REINICIAR SECTOR (5 VIDAS) ➔', {
+      fontFamily: 'monospace',
+      fontSize: '13px',
+      color: '#ffffff',
+      backgroundColor: '#dc2626',
+      padding: { x: 16, y: 10 }
+    })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 3)
+    .setInteractive({ useHandCursor: true });
+
+    retryBtn.on('pointerdown', () => {
+      this.cameras.main.fadeOut(250, 10, 12, 22);
+      this.time.delayedCall(270, () => {
+        this.scene.restart({
+          competencyId: sessionState.getActiveCompetency(),
+          lives: 5,
+          enemiesDefeated: 0,
+          sectorNumber: this.sectorNumber
+        });
+      });
+    });
+  }
+
+  /**
+   * Maneja la llegada a la Meta de Victoria del sector.
+   * Exige estrictamente un mínimo acumulado del 80% de precisión en combates.
+   * Si la precisión es inferior, extiende el mapa de forma infinita.
+   */
+  handleVictoryGoal() {
+    if (this.isVictory || this.isGameOver) return;
+
+    const total = this.combatTotalQuestions;
+    const correct = this.combatCorrectAnswers;
+    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+    // Regla estricta: Mínimo 80% de precisión y al menos 2 combates enfrentados
+    if (total < 2 || accuracy < 80) {
+      this.cameras.main.shake(250, 0.008);
+      if (this.soundManager) {
+        this.soundManager.playError();
+      }
+      const reason = total < 2
+        ? `⚠️ COMBATES INSUFICIENTES (${total}/2 mínimos). ¡EL SECTOR SE EXTIENDE! ➔`
+        : `⚠️ PRECISIÓN ${accuracy}% INSUFICIENTE (< 80%). ¡EL SECTOR SE EXTIENDE! ➔`;
+
+      this.showFloatingNotice(
+        this.player.x,
+        this.player.y - 75,
+        reason,
+        '#f43f5e'
+      );
+      this.extendChunk();
+      return;
+    }
+
+    this.isVictory = true;
+    if (this.soundManager) {
+      this.soundManager.playCorrect();
+    }
+
+    if (this.player) this.player.freeze();
+    if (this.challengeModal && this.challengeModal.isOpen) {
+      this.challengeModal.close();
+    }
+    if (this.battleArena && this.battleArena.isOpen) {
+      this.battleArena.close();
+    }
+
+    // Destello triunfal
+    this.cameras.main.flash(600, 56, 189, 248);
+
+    const { width, height } = this.scale;
+    const baseDepth = 3000;
+
+    const overlay = this.add.rectangle(0, 0, width, height, 0x05070f, 0.92)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(baseDepth)
+      .setInteractive();
+
+    const boxW = 560;
+    const boxH = 340;
+    const boxX = (width - boxW) / 2;
+    const boxY = (height - boxH) / 2;
+
+    const boxGfx = this.add.graphics().setScrollFactor(0).setDepth(baseDepth + 1);
+    boxGfx.fillStyle(0x0f172a, 0.98);
+    boxGfx.fillRoundedRect(boxX, boxY, boxW, boxH, 10);
+    boxGfx.lineStyle(2, 0x10b981, 1);
+    boxGfx.strokeRoundedRect(boxX, boxY, boxW, boxH, 10);
+
+    this.add.text(width / 2, boxY + 36, '🏆 ¡SECTOR COGNITIVO SUPERADO CON ÉXITO!', {
+      fontFamily: 'monospace',
+      fontSize: '16px',
+      color: '#10b981',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    this.add.text(
+      width / 2,
+      boxY + 76,
+      `¡Has completado con maestría el Sector ${this.sectorNumber} en ${this.meta.name.toUpperCase()}!\nSuperaste el requisito indispensable de precisión (>80%) con dominio táctico.`,
+      {
+        fontFamily: 'Segoe UI',
+        fontSize: '12px',
+        color: '#cbd5e1',
+        align: 'center',
+        wordWrap: { width: boxW - 50 }
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    this.add.text(
+      width / 2,
+      boxY + 130,
+      `🎯 PRECISIÓN LOGRADA: ${accuracy}% [${correct}/${total}]  •  Vidas: ${this.lives}/${this.maxLives}`,
+      {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#34d399',
+        fontStyle: 'bold'
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    this.add.text(
+      width / 2,
+      boxY + 160,
+      `MatBots neutralizados: ${this.enemiesDefeated}  •  Tramos atravesados: ${this.chunksCount}`,
+      {
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        color: '#38bdf8'
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+
+    // Botón: Siguiente Sector Procedural
+    const nextBtn = this.add.text(width / 2 - 120, boxY + 240, 'SIGUIENTE SECTOR ➔', {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#ffffff',
+      backgroundColor: '#059669',
+      padding: { x: 12, y: 10 }
+    })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 3)
+    .setInteractive({ useHandCursor: true });
+
+    nextBtn.on('pointerdown', () => {
+      this.cameras.main.fadeOut(250, 10, 12, 22);
+      this.time.delayedCall(270, () => {
+        this.scene.restart({
+          competencyId: sessionState.getActiveCompetency(),
+          lives: this.lives,
+          enemiesDefeated: this.enemiesDefeated,
+          sectorNumber: this.sectorNumber + 1
+        });
+      });
+    });
+
+    // Botón: Cambiar Ruta
+    const changeRouteBtn = this.add.text(width / 2 + 120, boxY + 240, 'CAMBIAR RUTA [M]', {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#ffffff',
+      backgroundColor: '#2563eb',
+      padding: { x: 12, y: 10 }
+    })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 3)
+    .setInteractive({ useHandCursor: true });
+
+    changeRouteBtn.on('pointerdown', () => {
+      this.goToCompetencySelector();
+    });
+  }
+
+  handleTerminalInteraction(terminalType = 'standard') {
+    if (terminalType === 'theory_hints' || terminalType === 'advanced_theory') {
+      if (this.theoryModal && !this.theoryModal.isOpen) {
+        this.theoryModal.open();
+      }
+      return;
+    }
+
+    if (this.challengeModal && !this.challengeModal.isOpen) {
+      if (terminalType === 'transfer_retention') {
+        this.challengeModal.open({ forceTransfer: true });
+      } else {
+        this.challengeModal.open();
+      }
     }
   }
 
@@ -397,8 +1055,13 @@ export class WorldScene extends Phaser.Scene {
     if (this.challengeModal && this.challengeModal.isOpen) {
       this.challengeModal.close();
     }
+    if (this.theoryModal && this.theoryModal.isOpen) {
+      this.theoryModal.close();
+    }
+    if (this.battleArena && this.battleArena.isOpen) {
+      this.battleArena.close();
+    }
 
-    console.log('[WorldScene] Cambiando a SelectCompetencyScene...');
     this.cameras.main.fadeOut(200, 10, 12, 22);
     this.time.delayedCall(220, () => {
       this.scene.start('SelectCompetencyScene');
@@ -412,8 +1075,13 @@ export class WorldScene extends Phaser.Scene {
     if (this.challengeModal && this.challengeModal.isOpen) {
       this.challengeModal.close();
     }
+    if (this.theoryModal && this.theoryModal.isOpen) {
+      this.theoryModal.close();
+    }
+    if (this.battleArena && this.battleArena.isOpen) {
+      this.battleArena.close();
+    }
 
-    console.log('[WorldScene] Abriendo DashboardScene...');
     this.cameras.main.fadeOut(200, 10, 12, 22);
     this.time.delayedCall(220, () => {
       this.scene.start('DashboardScene', {
@@ -423,19 +1091,27 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  handleTerminalInteraction(terminalType = 'standard') {
-    if (this.challengeModal && !this.challengeModal.isOpen) {
-      if (terminalType === 'transfer_retention') {
-        this.challengeModal.open({ forceTransfer: true });
-      } else {
-        this.challengeModal.open();
-      }
-    }
-  }
-
   update(time, delta) {
-    // Si el modal está abierto, congelar jugador
-    if (this.challengeModal && this.challengeModal.isOpen) {
+    if (this.isGameOver || this.isVictory) return;
+
+    // Actualizar scroll de fondo infinito en parallax continuo con escala calibrada
+    if (this.bgTile) {
+      const scaleRatio = this.bgScaleRatio || 1;
+      this.bgTile.tilePositionX = (this.cameras.main.scrollX * 0.35) / scaleRatio;
+    }
+
+    if (this.battleArena && this.battleArena.isOpen) {
+      // En combate táctico, el jugador mantiene sus animaciones (ataque / reposo) sin congelarse
+      if (this.player) {
+        this.player.updateCombat(time, delta);
+      }
+      return;
+    }
+
+    if (
+      (this.challengeModal && this.challengeModal.isOpen) ||
+      (this.theoryModal && this.theoryModal.isOpen)
+    ) {
       return;
     }
 
@@ -443,31 +1119,58 @@ export class WorldScene extends Phaser.Scene {
       this.player.update(time, delta);
     }
 
+    // Actualizar Inteligencia Artificial de los MatBots
+    if (this.matbots && this.matbots.length > 0) {
+      this.matbots.forEach(bot => {
+        if (bot && bot.active) {
+          bot.updateAI(time, delta, this.player);
+        }
+      });
+    }
+
     if (this.virtualControls) {
       this.virtualControls.update();
     }
 
-    // Verificar proximidad a terminales interactivas
+    // Verificar proximidad a terminales
     let nearTerminal = false;
     let activeTerminal = null;
 
-    this.terminals.getChildren().forEach(terminal => {
-      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, terminal.x, terminal.y);
-      if (dist < 75) {
-        nearTerminal = true;
-        activeTerminal = terminal;
-      }
-    });
+    if (this.terminals) {
+      this.terminals.getChildren().forEach(terminal => {
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, terminal.x, terminal.y);
+        if (dist < 75) {
+          nearTerminal = true;
+          activeTerminal = terminal;
+        }
+      });
+    }
+
+    if (this.virtualControls) {
+      this.virtualControls.setNearTerminal(nearTerminal, activeTerminal?.getData('type'));
+    }
 
     if (nearTerminal && activeTerminal) {
-      const isAdvanced = activeTerminal.getData('type') === 'transfer_retention';
-      this.interactionPrompt.setText(isAdvanced ? '[E] Terminal de Transferencia y Retención' : '[E] Terminal de Diagnóstico y Práctica');
-      this.interactionPrompt.setColor(isAdvanced ? '#c084fc' : this.meta.primaryColorHex);
+      const type = activeTerminal.getData('type');
+      const isTheory = (type === 'theory_hints' || type === 'advanced_theory');
+      const isAdvanced = (type === 'transfer_retention');
+
+      if (isTheory) {
+        this.interactionPrompt.setText('[E] Consola Teórica: Pistas y Fórmulas');
+        this.interactionPrompt.setColor('#38bdf8');
+      } else if (isAdvanced) {
+        this.interactionPrompt.setText('[E] Terminal de Transferencia y Retención');
+        this.interactionPrompt.setColor('#c084fc');
+      } else {
+        this.interactionPrompt.setText('[E] Terminal de Diagnóstico y Práctica');
+        this.interactionPrompt.setColor(this.meta.primaryColorHex);
+      }
+
       this.interactionPrompt.setPosition(activeTerminal.x, activeTerminal.y - 50);
       this.interactionPrompt.setVisible(true);
 
       if (Phaser.Input.Keyboard.JustDown(this.keyE)) {
-        this.handleTerminalInteraction(activeTerminal.getData('type'));
+        this.handleTerminalInteraction(type);
       }
     } else {
       this.interactionPrompt.setVisible(false);

@@ -97,6 +97,17 @@ export class EducationEngine {
     return chosenChallenge;
   }
 
+  /**
+   * Obtiene un desafío aleatorio para eventos dinámicos (combate MatBot / ítems).
+   * @param {string} [competencyId]
+   * @returns {Object|null}
+   */
+  getRandomChallenge(competencyId = null) {
+    const compId = competencyId || sessionState.getActiveCompetency();
+    this.resetTurnMetrics();
+    return ChallengeRepository.getRandomChallenge(compId);
+  }
+
   resetTurnMetrics() {
     this.currentHintsRequested = 0;
     this.currentAttempts = 0;

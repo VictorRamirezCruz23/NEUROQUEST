@@ -8,7 +8,7 @@ import { firestoreService } from '../../services/firebase/firestoreService.js';
 class AuthModalController {
   constructor() {
     this.modal = null;
-    this.mode = 'register'; // Iniciar por defecto en Registro para nuevos usuarios
+    this.mode = 'register';
     this.initialized = false;
     this.mandatory = false;
     this.onSuccessCallback = null;
@@ -48,15 +48,15 @@ class AuthModalController {
 
   setupListeners() {
     this.closeBtn?.addEventListener('click', () => {
-      if (!this.mandatory || authService.isPermanentUser()) {
+      if (!this.mandatory || authService.isPermanentUser() || authService.isUserLoggedInLocally()) {
         this.close();
       } else {
-        this.showError('Debes registrar una cuenta o iniciar sesión para comenzar.');
+        this.showError('Debes registrar una cuenta o ingresar como invitado para comenzar.');
       }
     });
 
     this.modal?.addEventListener('click', (e) => {
-      if (e.target === this.modal && (!this.mandatory || authService.isPermanentUser())) {
+      if (e.target === this.modal && (!this.mandatory || authService.isPermanentUser() || authService.isUserLoggedInLocally())) {
         this.close();
       }
     });
@@ -73,28 +73,36 @@ class AuthModalController {
       this.googleBtn.disabled = false;
       if (res.success) {
         this.showSuccess('¡Identificación con Google confirmada!');
+        this.mandatory = false;
         if (typeof this.onSuccessCallback === 'function') {
           this.onSuccessCallback(res.user);
         }
-        setTimeout(() => this.close(), 1000);
+        setTimeout(() => this.close(), 600);
       } else {
         this.showError(this.translateAuthError(res.error));
       }
     });
 
+    // Acceso como Cadete Invitado
     this.anonBtn?.addEventListener('click', async () => {
       this.clearMessages();
-      this.submitBtn.disabled = true;
+      if (this.submitBtn) this.submitBtn.disabled = true;
+      if (this.anonBtn) this.anonBtn.disabled = true;
+
       const res = await authService.loginAnonymously();
-      this.submitBtn.disabled = false;
+
+      if (this.submitBtn) this.submitBtn.disabled = false;
+      if (this.anonBtn) this.anonBtn.disabled = false;
+
       if (res.success) {
-        this.showSuccess('Iniciando sesión como Cadete Invitado...');
+        this.showSuccess('¡Acceso concedido! Entrando como Cadete Invitado...');
+        this.mandatory = false;
         if (typeof this.onSuccessCallback === 'function') {
           this.onSuccessCallback(res.user);
         }
-        setTimeout(() => this.close(), 1000);
+        setTimeout(() => this.close(), 450);
       } else {
-        this.showError(res.error);
+        this.showError(res.error || 'No se pudo iniciar como invitado.');
       }
     });
 
@@ -123,10 +131,11 @@ class AuthModalController {
         this.submitBtn.disabled = false;
         if (res.success) {
           this.showSuccess('¡Bienvenido de vuelta, Cadete!');
+          this.mandatory = false;
           if (typeof this.onSuccessCallback === 'function') {
             this.onSuccessCallback(res.user);
           }
-          setTimeout(() => this.close(), 1000);
+          setTimeout(() => this.close(), 600);
         } else {
           this.showError(this.translateAuthError(res.error));
         }
@@ -136,10 +145,11 @@ class AuthModalController {
         this.submitBtn.disabled = false;
         if (res.success) {
           this.showSuccess('¡Cuenta de cadete creada con éxito!');
+          this.mandatory = false;
           if (typeof this.onSuccessCallback === 'function') {
             this.onSuccessCallback(res.user);
           }
-          setTimeout(() => this.close(), 1000);
+          setTimeout(() => this.close(), 600);
         } else {
           this.showError(this.translateAuthError(res.error));
         }
@@ -157,14 +167,15 @@ class AuthModalController {
       if (this.anonBtn) this.anonBtn.style.display = 'none';
     } else if (authService.isUserLoggedInLocally()) {
       const name = authService.getDisplayName();
-      this.statusEl.textContent = `🟢 Sesión guardada: ${name}`;
-      this.statusEl.style.color = '#38bdf8';
+      const isGuest = authService.isGuestMode() || (user && user.isAnonymous);
+      this.statusEl.textContent = isGuest ? `🟡 Cadete Invitado: ${name}` : `🟢 Sesión guardada: ${name}`;
+      this.statusEl.style.color = isGuest ? '#fbbf24' : '#38bdf8';
       this.uidEl.textContent = authService.getUid();
       if (this.logoutBtn) this.logoutBtn.style.display = 'block';
-      if (this.anonBtn) this.anonBtn.style.display = 'none';
+      if (this.anonBtn) this.anonBtn.style.display = isGuest ? 'none' : 'block';
     } else {
-      this.statusEl.textContent = '⚪ Sin cuenta activa (Crea tu cuenta)';
-      this.statusEl.style.color = '#fbbf24';
+      this.statusEl.textContent = '⚪ Sin cuenta activa (Crea tu cuenta o juega como invitado)';
+      this.statusEl.style.color = '#94a3b8';
       this.uidEl.textContent = 'No registrado';
       if (this.logoutBtn) this.logoutBtn.style.display = 'none';
       if (this.anonBtn) this.anonBtn.style.display = 'block';
@@ -238,11 +249,11 @@ class AuthModalController {
       this.clearMessages();
       this.updateStatusView(authService.getUser());
 
-      // Si es obligatorio y no ha iniciado sesión, forzar modo registro
+      // Si es obligatorio y no ha iniciado sesión ni como invitado, forzar modo registro
       if (this.mandatory && !authService.isPermanentUser() && !authService.isUserLoggedInLocally()) {
         this.mode = 'register';
         this.titleEl.textContent = 'REGISTRO DE NUEVO CADETE';
-        this.subtitleEl.textContent = 'Crea tu cuenta escolar para comenzar tu aventura';
+        this.subtitleEl.textContent = 'Crea tu cuenta escolar o ingresa como invitado para comenzar tu aventura';
         this.nameField.style.display = 'block';
         this.submitBtn.textContent = 'CREAR CUENTA';
         this.switchBtn.textContent = '¿Ya tienes cuenta? Inicia Sesión';

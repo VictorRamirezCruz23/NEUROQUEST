@@ -12,19 +12,35 @@ import { authService } from './authService.js';
 /**
  * firestoreService.js — Servicio modular de persistencia y telemetría en Cloud Firestore.
  * Sincroniza el perfil del estudiante, su progreso adaptativo independiente por competencia
- * y el historial de intentos, con fallback automático en localStorage ante caídas de red.
+ * y el historial de intentos, con fallback automático en localStorage ante caídas de red,
+ * adblockers o canales terminados (net::ERR_BLOCKED_BY_CLIENT).
  */
 class FirestoreService {
   constructor() {
     this.isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    this.isBlockedByClient = false;
+
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
         this.isOnline = true;
+        this.isBlockedByClient = false;
         this.syncOfflineQueue();
       });
       window.addEventListener('offline', () => {
         this.isOnline = false;
       });
+    }
+  }
+
+  handleNetworkError(contextMsg, err) {
+    const msg = err?.message || String(err);
+    if (msg.includes('ERR_BLOCKED_BY_CLIENT') || msg.includes('unavailable') || msg.includes('terminate')) {
+      if (!this.isBlockedByClient) {
+        this.isBlockedByClient = true;
+        console.info('[FirestoreService] Conexión remota de Firestore restringida por el cliente o adblocker. Operando en modo local resiliente.');
+      }
+    } else {
+      console.warn(`[FirestoreService] ${contextMsg}:`, msg);
     }
   }
 
@@ -47,13 +63,15 @@ class FirestoreService {
     };
 
     try {
+      localStorage.setItem(`neuroquest_profile_${uid}`, JSON.stringify(profileData));
+      if (!this.isOnline || this.isBlockedByClient || uid.startsWith('guest_offline')) {
+        return true;
+      }
       const userRef = doc(db, 'users', uid);
       await setDoc(userRef, profileData, { merge: true });
-      console.log(`[FirestoreService] Perfil sincronizado para UID: ${uid}`);
       return true;
     } catch (err) {
-      console.warn('[FirestoreService] No se pudo sincronizar perfil remoto, guardando localmente:', err.message);
-      localStorage.setItem(`neuroquest_profile_${uid}`, JSON.stringify(profileData));
+      this.handleNetworkError('No se pudo sincronizar perfil remoto', err);
       return false;
     }
   }
@@ -78,10 +96,12 @@ class FirestoreService {
       updatedAt: new Date().toISOString()
     };
 
-    // Respaldo local inmediato
-    localStorage.setItem(`neuroquest_progress_${uid}_${competencyId}`, JSON.stringify(payload));
+    // Respaldo local inmediato garantizado
+    try {
+      localStorage.setItem(`neuroquest_progress_${uid}_${competencyId}`, JSON.stringify(payload));
+    } catch (e) {}
 
-    if (!this.isOnline || uid.startsWith('guest_offline')) {
+    if (!this.isOnline || this.isBlockedByClient || uid.startsWith('guest_offline')) {
       this.enqueueOfflineSave(uid, competencyId, payload);
       return true;
     }
@@ -91,7 +111,7 @@ class FirestoreService {
       await setDoc(progressRef, { ...payload, serverTimestamp: serverTimestamp() }, { merge: true });
       return true;
     } catch (err) {
-      console.warn(`[FirestoreService] Error al guardar progreso remoto de ${competencyId}:`, err.message);
+      this.handleNetworkError(`Error al guardar progreso remoto de ${competencyId}`, err);
       this.enqueueOfflineSave(uid, competencyId, payload);
       return false;
     }
@@ -107,7 +127,7 @@ class FirestoreService {
     const localData = localStorage.getItem(`neuroquest_progress_${uid}_${competencyId}`);
     const parsedLocal = localData ? JSON.parse(localData) : null;
 
-    if (!this.isOnline || uid.startsWith('guest_offline')) {
+    if (!this.isOnline || this.isBlockedByClient || uid.startsWith('guest_offline')) {
       return parsedLocal;
     }
 
@@ -121,7 +141,7 @@ class FirestoreService {
       }
       return parsedLocal;
     } catch (err) {
-      console.warn(`[FirestoreService] Error al cargar progreso de ${competencyId}, usando caché local:`, err.message);
+      this.handleNetworkError(`Error al cargar progreso de ${competencyId}`, err);
       return parsedLocal;
     }
   }
@@ -139,17 +159,15 @@ class FirestoreService {
       timestamp: new Date().toISOString()
     };
 
-    // Guardar en log local acumulativo (máximo 50 entradas)
+    // Guardar en log local acumulativo
     try {
       const localLog = JSON.parse(localStorage.getItem(`neuroquest_attempts_${uid}`) || '[]');
       localLog.unshift(logPayload);
       if (localLog.length > 50) localLog.pop();
       localStorage.setItem(`neuroquest_attempts_${uid}`, JSON.stringify(localLog));
-    } catch (e) {
-      // Ignorar quota exceeded
-    }
+    } catch (e) {}
 
-    if (!this.isOnline || uid.startsWith('guest_offline')) {
+    if (!this.isOnline || this.isBlockedByClient || uid.startsWith('guest_offline')) {
       return true;
     }
 
@@ -158,7 +176,7 @@ class FirestoreService {
       await addDoc(attemptsCol, { ...logPayload, serverTimestamp: serverTimestamp() });
       return true;
     } catch (err) {
-      console.warn('[FirestoreService] Error registrando intento remoto:', err.message);
+      this.handleNetworkError('Error registrando intento remoto', err);
       return false;
     }
   }
@@ -168,19 +186,17 @@ class FirestoreService {
       const queue = JSON.parse(localStorage.getItem('neuroquest_offline_queue') || '[]');
       queue.push({ uid, competencyId, payload, timestamp: Date.now() });
       localStorage.setItem('neuroquest_offline_queue', JSON.stringify(queue));
-    } catch (e) {
-      console.error('[FirestoreService] Error en cola offline:', e);
-    }
+    } catch (e) {}
   }
 
   async syncOfflineQueue() {
+    if (this.isBlockedByClient) return;
+
     try {
       const queue = JSON.parse(localStorage.getItem('neuroquest_offline_queue') || '[]');
       if (queue.length === 0) return;
 
-      console.log(`[FirestoreService] Sincronizando ${queue.length} elementos pendientes de la cola offline...`);
       const pending = [];
-
       for (const item of queue) {
         try {
           const ref = doc(db, 'users', item.uid, 'progress', item.competencyId);
@@ -191,11 +207,8 @@ class FirestoreService {
       }
 
       localStorage.setItem('neuroquest_offline_queue', JSON.stringify(pending));
-      if (pending.length === 0) {
-        console.log('[FirestoreService] Sincronización offline completada con éxito.');
-      }
     } catch (err) {
-      console.error('[FirestoreService] Error procesando cola offline:', err);
+      console.warn('[FirestoreService] Error procesando cola offline:', err);
     }
   }
 }

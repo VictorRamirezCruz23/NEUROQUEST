@@ -26,11 +26,25 @@ export class WelcomeScene extends Phaser.Scene {
 
     profileBtn.on('pointerover', () => profileBtn.setColor('#ffffff'));
     profileBtn.on('pointerout', () => profileBtn.setColor('#38bdf8'));
-    profileBtn.on('pointerdown', () => authModalController.open());
+    profileBtn.on('pointerdown', () => authModalController.open({
+      mandatory: false,
+      onAuthSuccess: () => {
+        if (profileBtn && profileBtn.setText) {
+          profileBtn.setText(`👤 ${authService.getDisplayName()}`);
+        }
+      }
+    }));
 
-    authService.onAuthStateChange(() => {
+    this.authUnsubscribe = authService.onAuthStateChange(() => {
       if (profileBtn && profileBtn.setText) {
         profileBtn.setText(`👤 ${authService.getDisplayName()}`);
+      }
+    });
+
+    this.events.once('shutdown', () => {
+      if (this.authUnsubscribe) {
+        this.authUnsubscribe();
+        this.authUnsubscribe = null;
       }
     });
 
@@ -116,19 +130,21 @@ export class WelcomeScene extends Phaser.Scene {
     });
 
     // Pie de página de estado del sistema
-    this.add.text(width / 2, height - 25, 'v0.7.0 • Firebase Cloud Sync & Autenticación Activa', {
+    this.add.text(width / 2, height - 25, 'v0.7.1 • Firebase Cloud Sync & Autenticación Activa', {
       fontFamily: 'monospace',
       fontSize: '12px',
       color: '#64748b'
     }).setOrigin(0.5);
 
-    // Solicitar siempre creación de cuenta o inicio de sesión si no hay sesión previa
+    // Diálogo pasivo inicial si no ha iniciado sesión
     this.time.delayedCall(450, () => {
       if (!authService.isUserLoggedInLocally() && !authService.isPermanentUser()) {
         authModalController.open({
-          mandatory: true,
+          mandatory: false,
           onAuthSuccess: () => {
-            profileBtn.setText(`👤 ${authService.getDisplayName()}`);
+            if (profileBtn && profileBtn.setText) {
+              profileBtn.setText(`👤 ${authService.getDisplayName()}`);
+            }
           }
         });
       }

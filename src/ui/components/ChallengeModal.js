@@ -37,7 +37,9 @@ export class ChallengeModal {
         else if (code === 'KeyH') this.triggerHint();
       } else if (this.currentView === 'feedback') {
         if (code === 'Enter' || code === 'Space') {
-          if (this.lastResult && this.lastResult.isCorrect) {
+          if (this.currentOptions?.mode === 'combat' || this.currentOptions?.mode === 'recovery') {
+            this.close();
+          } else if (this.lastResult && this.lastResult.isCorrect) {
             this.open();
           } else {
             this.renderChallengeView();
@@ -53,7 +55,14 @@ export class ChallengeModal {
 
   open(options = {}) {
     this.currentOptions = options;
-    this.currentChallenge = educationEngine.getNextChallenge(null, options);
+    if (options.challenge) {
+      this.currentChallenge = options.challenge;
+    } else if (options.mode === 'combat' || options.mode === 'recovery') {
+      this.currentChallenge = educationEngine.getRandomChallenge();
+    } else {
+      this.currentChallenge = educationEngine.getNextChallenge(null, options);
+    }
+
     if (!this.currentChallenge) {
       console.warn('[ChallengeModal] No hay desafíos en el banco para la competencia activa.');
       return;
@@ -62,6 +71,9 @@ export class ChallengeModal {
     this.isOpen = true;
     this.currentView = 'challenge';
     if (this.player) this.player.freeze();
+    if (this.scene && this.scene.virtualControls) {
+      this.scene.virtualControls.setVisible(false);
+    }
 
     this.renderChallengeView();
   }
@@ -110,15 +122,29 @@ export class ChallengeModal {
     modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 10);
 
     // 1. Cabecera (Y: 0 a 42 px)
+    const isCombat = this.currentOptions?.mode === 'combat';
+    const isRecovery = this.currentOptions?.mode === 'recovery';
+
+    let headerBgFill = meta.badgeBg;
+    let headerTitle = `[ ${meta.code} ] TERMINAL EDUCATIVA • ${meta.name.toUpperCase()} (MUNDO ${meta.worldNumber})`;
+
+    if (isCombat) {
+      headerBgFill = 0x991b1b;
+      headerTitle = `⚔️ DUELO DE COMBATE • ENFRENTAMIENTO CONTRA MATBOT`;
+    } else if (isRecovery) {
+      headerBgFill = 0x065f46;
+      headerTitle = `💖 SINTONIZACIÓN NANOBÓTICA • NÚCLEO DE VIDA`;
+    }
+
     const headerBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
-    headerBg.fillStyle(meta.badgeBg, 0.95);
+    headerBg.fillStyle(headerBgFill, 0.95);
     headerBg.fillRoundedRect(modalX, modalY, modalW, 42, { tl: 10, tr: 10, bl: 0, br: 0 });
 
     this.track(
       this.scene.add.text(
         modalX + 18,
         modalY + 13,
-        `[ ${meta.code} ] TERMINAL EDUCATIVA • ${meta.name.toUpperCase()} (MUNDO ${meta.worldNumber})`,
+        headerTitle,
         {
           fontFamily: 'monospace',
           fontSize: '13px',
@@ -141,7 +167,7 @@ export class ChallengeModal {
     );
     closeBtn.on('pointerdown', () => this.close());
 
-    // 2. Banner de Diagnóstico / Nivel Adaptativo / Transferencia / Retención (Y: modalY + 50 px)
+    // 2. Banner de Diagnóstico / Nivel Adaptativo / Transferencia / Retención / Combate
     const isDiag = !!this.currentChallenge.isDiagnostic;
     const isTransfer = !!this.currentChallenge.isTransfer;
     const isRetention = !!this.currentChallenge.isRetention;
@@ -151,7 +177,15 @@ export class ChallengeModal {
     let bannerTextColor = meta.primaryColorHex;
     let bannerText = `★ HABILIDAD: ${this.currentChallenge.skillName} • ${levelLabel.toUpperCase()}`;
 
-    if (isDiag) {
+    if (isCombat) {
+      bannerBgColor = 0x7f1d1d;
+      bannerTextColor = '#fca5a5';
+      bannerText = '⚠️ ¡ALERTA DE COMBATE! Responde correctamente para derrotar a MatBot. Si fallas, perderás 1 vida.';
+    } else if (isRecovery) {
+      bannerBgColor = 0x064e3b;
+      bannerTextColor = '#6ee7b7';
+      bannerText = '💖 ¡NÚCLEO DE RECUPERACIÓN! Responde correctamente para restaurar 1 vida a tu blindaje (Máximo 5).';
+    } else if (isDiag) {
       bannerBgColor = 0x78350f;
       bannerTextColor = '#fbbf24';
       bannerText = '★ EVALUACIÓN DIAGNÓSTICA INICIAL • Calibración de línea base sin penalización';
@@ -334,6 +368,17 @@ export class ChallengeModal {
     if (!this.isOpen || this.currentView !== 'challenge') return;
     const result = educationEngine.evaluateAnswer(this.currentChallenge, optionIndex);
     this.lastResult = result;
+
+    if (this.currentOptions?.mode === 'combat') {
+      if (typeof this.currentOptions.onCombatResult === 'function') {
+        this.currentOptions.onCombatResult(result.isCorrect, this.currentChallenge, this.currentOptions.matbot);
+      }
+    } else if (this.currentOptions?.mode === 'recovery') {
+      if (typeof this.currentOptions.onRecoveryResult === 'function') {
+        this.currentOptions.onRecoveryResult(result.isCorrect, this.currentChallenge, this.currentOptions.healthItem);
+      }
+    }
+
     if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
       this.scene.updateHUDLevel();
     }
@@ -367,13 +412,31 @@ export class ChallengeModal {
     modalBg.lineStyle(2, borderColor, 1);
     modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 10);
 
-    // 1. Cabecera
+    // 1. Cabecera adaptada
+    const isCombat = this.currentOptions?.mode === 'combat';
+    const isRecovery = this.currentOptions?.mode === 'recovery';
+
+    let fbHeaderBg = result.isCorrect ? 0x065f46 : 0x78350f;
+    let fbTitle = result.title;
+
+    if (isCombat) {
+      fbHeaderBg = result.isCorrect ? 0x065f46 : 0x991b1b;
+      fbTitle = result.isCorrect
+        ? '⚔️ ¡VICTORIA EN COMBATE! MATBOT NEUTRALIZADO'
+        : '💥 ¡ATAQUE ENEMIGO RECIBIDO! HAS PERDIDO 1 VIDA';
+    } else if (isRecovery) {
+      fbHeaderBg = result.isCorrect ? 0x065f46 : 0x78350f;
+      fbTitle = result.isCorrect
+        ? '💖 ¡REPARACIÓN EXITOSA! +1 VIDA RECUPERADA'
+        : '⚠️ DESCARGA DE ENERGÍA: NO SE RESTAURÓ LA VIDA';
+    }
+
     const headerBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 2));
-    headerBg.fillStyle(result.isCorrect ? 0x065f46 : 0x78350f, 0.95);
+    headerBg.fillStyle(fbHeaderBg, 0.95);
     headerBg.fillRoundedRect(modalX, modalY, modalW, 42, { tl: 10, tr: 10, bl: 0, br: 0 });
 
     this.track(
-      this.scene.add.text(modalX + 18, modalY + 13, result.title, {
+      this.scene.add.text(modalX + 18, modalY + 13, fbTitle, {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#ffffff',
@@ -621,8 +684,13 @@ export class ChallengeModal {
 
     // 6. Botones de Acción (inferior)
     const btnY = modalY + modalH - 30;
-    const btnW = 260;
+    const btnW = 270;
     const btnH = 34;
+
+    const isSpecial = (this.currentOptions?.mode === 'combat' || this.currentOptions?.mode === 'recovery');
+    const btnText = isSpecial
+      ? 'CONTINUAR AVENTURA [Enter] ➔'
+      : (result.isCorrect ? 'SIGUIENTE DESAFÍO [Enter] ➔' : 'VOLVER A INTENTAR [Enter]');
 
     const actionBtnBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 4));
     actionBtnBg.fillStyle(result.isCorrect ? 0x059669 : 0x2563eb, 1);
@@ -632,7 +700,7 @@ export class ChallengeModal {
       this.scene.add.text(
         modalX + modalW / 2,
         btnY,
-        result.isCorrect ? 'SIGUIENTE DESAFÍO [Enter] ➔' : 'VOLVER A INTENTAR [Enter]',
+        btnText,
         {
           fontFamily: 'monospace',
           fontSize: '12px',
@@ -651,7 +719,9 @@ export class ChallengeModal {
     );
 
     actionHit.on('pointerdown', () => {
-      if (result.isCorrect) {
+      if (isSpecial) {
+        this.close();
+      } else if (result.isCorrect) {
         this.open();
       } else {
         this.renderChallengeView();
@@ -676,6 +746,9 @@ export class ChallengeModal {
     this.currentView = null;
     this.clearElements();
     if (this.player) this.player.unfreeze();
+    if (this.scene && this.scene.virtualControls) {
+      this.scene.virtualControls.setVisible(true);
+    }
     if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
       this.scene.updateHUDLevel();
     }

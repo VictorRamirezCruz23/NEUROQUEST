@@ -629,4 +629,25 @@ export class ChallengeRepository {
     }
     return list.find(c => c.isRetention) || null;
   }
+
+  /**
+   * Obtiene un desafío aleatorio del banco de preguntas (excluyendo diagnósticos).
+   * Ideal para combates contra MatBot y recuperación de vida en tiempo real.
+   * @param {string} [competencyId]
+   * @returns {Object|null}
+   */
+  static getRandomChallenge(competencyId = null) {
+    let pool = [];
+    if (competencyId && CHALLENGES_BANK[competencyId]) {
+      pool = CHALLENGES_BANK[competencyId].filter(c => !c.isDiagnostic);
+    }
+    if (pool.length === 0) {
+      Object.values(CHALLENGES_BANK).forEach(list => {
+        pool.push(...list.filter(c => !c.isDiagnostic));
+      });
+    }
+    if (pool.length === 0) return null;
+    const randomIndex = Math.floor(Math.random() * pool.length);
+    return pool[randomIndex];
+  }
 }

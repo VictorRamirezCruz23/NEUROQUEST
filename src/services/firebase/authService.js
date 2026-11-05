@@ -13,7 +13,8 @@ import { auth } from './firebaseConfig.js';
 /**
  * authService.js — Servicio modular de autenticación para NEUROQUEST.
  * Soporta registro y acceso con cuenta escolar, Google Auth y persistencia
- * en almacenamiento local para recordar sesiones activas.
+ * en almacenamiento local para recordar sesiones activas y contingencia
+ * de acceso como Cadete Invitado sin bloqueos.
  */
 class AuthService {
   constructor() {
@@ -21,17 +22,39 @@ class AuthService {
     this.listeners = [];
     this.initialized = false;
 
+    // Cargar sesión de invitado previa si existe
+    if (this.isGuestMode()) {
+      this.currentUser = this.getSavedGuestUser();
+    }
+
     // Escuchar cambios de estado de autenticación en tiempo real
     onAuthStateChanged(auth, (user) => {
-      this.currentUser = user;
-      this.initialized = true;
+      if (user) {
+        this.currentUser = user;
+        this.initialized = true;
 
-      if (user && !user.isAnonymous) {
-        this.saveLocalSession(user);
+        if (!user.isAnonymous) {
+          this.saveLocalSession(user);
+        } else {
+          this.saveGuestSession(user);
+        }
+
+        console.log(`[AuthService] Estado de usuario: ${user.isAnonymous ? 'Cadete Anónimo' : user.email} [UID: ${user.uid}]`);
+        this.notifyListeners(user);
+      } else {
+        // Si no hay sesión en Firebase pero se conservó sesión de invitado local
+        if (this.isGuestMode()) {
+          const guestUser = this.getSavedGuestUser();
+          this.currentUser = guestUser;
+          this.initialized = true;
+          console.log(`[AuthService] Restaurando sesión de Cadete Invitado local [UID: ${guestUser.uid}]`);
+          this.notifyListeners(guestUser);
+        } else {
+          this.currentUser = null;
+          this.initialized = true;
+          this.notifyListeners(null);
+        }
       }
-
-      console.log(`[AuthService] Estado de usuario: ${user ? (user.isAnonymous ? 'Cadete Anónimo' : user.email) : 'Desconectado'} [UID: ${user ? user.uid : 'N/A'}]`);
-      this.notifyListeners(user);
     });
   }
 
@@ -116,16 +139,30 @@ class AuthService {
   }
 
   /**
-   * Inicia sesión anónima de contingencia.
+   * Inicia sesión anónima o modo de invitado garantizado.
+   * Si el proveedor anónimo de Firebase no está habilitado o falla,
+   * crea una sesión local resiliente para permitir el acceso inmediato al juego.
    * @returns {Promise<Object>}
    */
   async loginAnonymously() {
     try {
       const cred = await signInAnonymously(auth);
+      this.saveGuestSession(cred.user);
       return { success: true, user: cred.user };
     } catch (err) {
-      console.error('[AuthService] Error al iniciar sesión anónima:', err);
-      return { success: false, error: err.message };
+      console.warn(`[AuthService] Acceso anónimo en Firebase no disponible (${err.code || err.message}). Activando sesión local de Cadete Invitado:`, err);
+      const guestId = 'guest_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
+      const guestUser = {
+        uid: guestId,
+        displayName: 'Cadete Invitado',
+        email: null,
+        isAnonymous: true,
+        isLocalGuest: true
+      };
+      this.currentUser = guestUser;
+      this.saveGuestSession(guestUser);
+      this.notifyListeners(guestUser);
+      return { success: true, user: guestUser, isFallback: true };
     }
   }
 
@@ -136,10 +173,16 @@ class AuthService {
   async logout() {
     try {
       this.clearLocalSession();
-      await signOut(auth);
+      this.currentUser = null;
+      if (auth.currentUser) {
+        await signOut(auth);
+      } else {
+        this.notifyListeners(null);
+      }
       return { success: true };
     } catch (err) {
       console.error('[AuthService] Error al cerrar sesión:', err);
+      this.notifyListeners(null);
       return { success: false, error: err.message };
     }
   }
@@ -152,6 +195,7 @@ class AuthService {
     if (!user || user.isAnonymous) return;
     try {
       localStorage.setItem('neuroquest_logged_in', 'true');
+      localStorage.removeItem('neuroquest_is_guest');
       localStorage.setItem('neuroquest_user_uid', user.uid);
       localStorage.setItem('neuroquest_user_email', user.email || '');
       localStorage.setItem('neuroquest_user_name', user.displayName || user.email?.split('@')[0] || 'Cadete');
@@ -161,11 +205,66 @@ class AuthService {
   }
 
   /**
+   * Guarda de forma local la sesión de cadete invitado.
+   * @param {Object} user
+   */
+  saveGuestSession(user) {
+    if (!user) return;
+    try {
+      localStorage.setItem('neuroquest_logged_in', 'true');
+      localStorage.setItem('neuroquest_is_guest', 'true');
+      localStorage.setItem('neuroquest_user_uid', user.uid);
+      localStorage.setItem('neuroquest_user_name', user.displayName || 'Cadete Invitado');
+    } catch (e) {
+      console.warn('[AuthService] No se pudo guardar sesión local de invitado:', e);
+    }
+  }
+
+  /**
+   * Verifica si la sesión actual corresponde a un modo invitado local.
+   * @returns {boolean}
+   */
+  isGuestMode() {
+    try {
+      return localStorage.getItem('neuroquest_is_guest') === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Retorna el objeto representativo de un usuario invitado guardado.
+   * @returns {Object}
+   */
+  getSavedGuestUser() {
+    try {
+      const uid = localStorage.getItem('neuroquest_user_uid') || ('guest_' + Math.random().toString(36).substring(2, 8));
+      const displayName = localStorage.getItem('neuroquest_user_name') || 'Cadete Invitado';
+      return {
+        uid,
+        displayName,
+        email: null,
+        isAnonymous: true,
+        isLocalGuest: true
+      };
+    } catch {
+      return {
+        uid: 'guest_fallback',
+        displayName: 'Cadete Invitado',
+        email: null,
+        isAnonymous: true,
+        isLocalGuest: true
+      };
+    }
+  }
+
+  /**
    * Limpia el almacenamiento local de sesión.
    */
   clearLocalSession() {
     try {
       localStorage.removeItem('neuroquest_logged_in');
+      localStorage.removeItem('neuroquest_is_guest');
       localStorage.removeItem('neuroquest_user_uid');
       localStorage.removeItem('neuroquest_user_email');
       localStorage.removeItem('neuroquest_user_name');
@@ -220,17 +319,17 @@ class AuthService {
    * @returns {string}
    */
   getDisplayName() {
-    if (this.currentUser && !this.currentUser.isAnonymous) {
-      return this.currentUser.displayName || this.currentUser.email.split('@')[0];
+    if (this.currentUser) {
+      if (!this.currentUser.isAnonymous) {
+        return this.currentUser.displayName || this.currentUser.email.split('@')[0];
+      }
+      return this.currentUser.displayName || `Cadete #${this.currentUser.uid.slice(0, 5).toUpperCase()}`;
     }
     try {
       const savedName = localStorage.getItem('neuroquest_user_name');
       if (savedName) return savedName;
     } catch (e) {}
 
-    if (this.currentUser && this.currentUser.isAnonymous) {
-      return `Cadete #${this.currentUser.uid.slice(0, 5).toUpperCase()}`;
-    }
     return 'Cadete no registrado';
   }
 }

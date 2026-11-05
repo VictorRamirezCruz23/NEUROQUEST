@@ -1,12 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import { getFunctions } from 'firebase/functions';
 
 /**
  * firebaseConfig.js — Configuración centralizada e inicialización del SDK modular de Firebase.
  * Lee desde variables de entorno Vite con fallback seguro a las credenciales oficiales del proyecto.
+ * Configura Firestore con auto-detección y polling resiliente para evitar bloqueos por adblockers
+ * y desconexiones en canales terminados (net::ERR_BLOCKED_BY_CLIENT / TYPE=terminate).
  */
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDHLgMt2WloB3LC3EAgJffwKh5NW8p7qXo",
@@ -24,21 +26,28 @@ export const app = initializeApp(firebaseConfig);
 // 2. Inicializar Firebase Authentication
 export const auth = getAuth(app);
 
-// 3. Inicializar Cloud Firestore
-export const db = getFirestore(app);
+// 3. Inicializar Cloud Firestore con transporte resiliente
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+  useFetchStreams: false
+});
 
 // 4. Inicializar Cloud Functions
 export const functions = getFunctions(app);
 
-// 5. Inicializar Firebase Analytics si el entorno del navegador lo soporta
+// 5. Inicializar Firebase Analytics de forma segura si no está bloqueado por extensiones
 export let analytics = null;
 if (typeof window !== 'undefined') {
-  isSupported().then(supported => {
-    if (supported) {
-      analytics = getAnalytics(app);
-      console.log('[Firebase] Analytics inicializado correctamente.');
-    }
-  }).catch(err => {
-    console.warn('[Firebase] Analytics no soportado en este entorno:', err.message);
-  });
+  try {
+    isSupported().then(supported => {
+      if (supported) {
+        analytics = getAnalytics(app);
+        console.log('[Firebase] Analytics inicializado correctamente.');
+      }
+    }).catch(() => {
+      // Silenciar bloqueo de adblocker de Analytics
+    });
+  } catch (e) {
+    // Silenciar error de Analytics bloqueado
+  }
 }
