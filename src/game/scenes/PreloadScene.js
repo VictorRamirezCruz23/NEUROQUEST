@@ -55,14 +55,14 @@ export class PreloadScene extends Phaser.Scene {
     // Cargar icono oficial de la cabeza del jugador para el HUD de vidas
     this.load.image('player_head', '/assets/sprites/player_head.png');
 
-    // Cargar spritesheet oficial de MatBot con clave independiente 'matbot_texture'
+    // Cargar spritesheet oficial de MatBot con clave independiente 'matbot_texture' (240x240 px calibrado)
     this.load.spritesheet('matbot_texture', '/assets/sprites/matbot_sheet.png', {
-      frameWidth: 200,
-      frameHeight: 200
+      frameWidth: 240,
+      frameHeight: 240
     });
     this.load.spritesheet('matbot', '/assets/sprites/matbot_sheet.png', {
-      frameWidth: 200,
-      frameHeight: 200
+      frameWidth: 240,
+      frameHeight: 240
     });
 
     // Cargar los 4 fondos de escenario pixel art oficiales
@@ -265,12 +265,47 @@ export class PreloadScene extends Phaser.Scene {
       });
     }
 
-    // 6b. Agachado para esquivar obstáculos (Crouch)
+    // 6b. Agachado estático para esquivar obstáculos (Crouch Idle)
     if (!this.anims.exists('player_crouch')) {
       this.anims.create({
         key: 'player_crouch',
         frames: [{ key: pTex, frame: 15 }],
         frameRate: 1
+      });
+    }
+
+    // 6c. Caminar agachado (Crouch Walk / Duck Walk)
+    const crouchWalkFrames = [
+      { key: pTex, frame: 15 },
+      { key: pTex, frame: 10 },
+      { key: pTex, frame: 15 },
+      { key: pTex, frame: 14 }
+    ];
+
+    if (!this.anims.exists('player_crouch_walk')) {
+      this.anims.create({
+        key: 'player_crouch_walk',
+        frames: crouchWalkFrames,
+        frameRate: 8,
+        repeat: -1
+      });
+    }
+
+    if (!this.anims.exists('crouch_walk')) {
+      this.anims.create({
+        key: 'crouch_walk',
+        frames: crouchWalkFrames,
+        frameRate: 8,
+        repeat: -1
+      });
+    }
+
+    if (!this.anims.exists('duck_walk')) {
+      this.anims.create({
+        key: 'duck_walk',
+        frames: crouchWalkFrames,
+        frameRate: 8,
+        repeat: -1
       });
     }
 
@@ -305,17 +340,22 @@ export class PreloadScene extends Phaser.Scene {
   createEnemyAnimations() {
     const mTex = this.textures.exists('matbot_texture') ? 'matbot_texture' : 'matbot';
 
-    // 1. MatBot Idle (Frames 0 a 3 de la fila 0)
+    // 1. MatBot Idle (Frames 0, 1, 0, 4 - Postura lateral/perspectiva de guardia)
     if (!this.anims.exists('matbot_idle')) {
       this.anims.create({
         key: 'matbot_idle',
-        frames: this.anims.generateFrameNumbers(mTex, { start: 0, end: 3 }),
-        frameRate: 5,
+        frames: [
+          { key: mTex, frame: 0 },
+          { key: mTex, frame: 1 },
+          { key: mTex, frame: 0 },
+          { key: mTex, frame: 4 }
+        ],
+        frameRate: 4,
         repeat: -1
       });
     }
 
-    // 2. MatBot Walk / Patrullaje fluido de 8 pasos (Frames 8 a 15 de la fila 1)
+    // 2. MatBot Walk / Patrullaje fluido de 8 pasos (Frames 8 a 15 de la fila 1 - Ciclo oficial Enhanced Walk)
     if (!this.anims.exists('matbot_walk')) {
       this.anims.create({
         key: 'matbot_walk',
@@ -325,32 +365,32 @@ export class PreloadScene extends Phaser.Scene {
       });
     }
 
-    // 3. MatBot Attack (Frames 16 a 21 de la fila 2)
+    // 3. MatBot Attack (Frames 16 a 22 de la fila 2 - Despliegue, carga y disparo fractal)
     if (!this.anims.exists('matbot_attack')) {
       this.anims.create({
         key: 'matbot_attack',
-        frames: this.anims.generateFrameNumbers(mTex, { start: 16, end: 21 }),
+        frames: this.anims.generateFrameNumbers(mTex, { start: 16, end: 22 }),
         frameRate: 10,
         repeat: 0
       });
     }
 
-    // 4. MatBot Hurt / Impacto (Frames 24 a 25 de la fila 3)
+    // 4. MatBot Hurt / Impacto (Frame 24 de la fila 3)
     if (!this.anims.exists('matbot_hurt')) {
       this.anims.create({
         key: 'matbot_hurt',
-        frames: this.anims.generateFrameNumbers(mTex, { start: 24, end: 25 }),
+        frames: [{ key: mTex, frame: 24 }],
         frameRate: 8,
         repeat: 0
       });
     }
 
-    // 5. MatBot Die / Desintegración (Frames 26 a 29 de la fila 3)
+    // 5. MatBot Die / Desintegración destructiva completa (Frames 24 a 30 de la fila 3)
     if (!this.anims.exists('matbot_die')) {
       this.anims.create({
         key: 'matbot_die',
-        frames: this.anims.generateFrameNumbers(mTex, { start: 26, end: 29 }),
-        frameRate: 8,
+        frames: this.anims.generateFrameNumbers(mTex, { start: 24, end: 30 }),
+        frameRate: 9,
         repeat: 0
       });
     }

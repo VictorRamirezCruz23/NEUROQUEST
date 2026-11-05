@@ -170,7 +170,7 @@ export class BattleArenaModal {
     // Sprite de combate de MatBot (textura y animaciones independientes)
     const botTextureKey = this.scene.textures.exists('matbot_texture') ? 'matbot_texture' : 'matbot';
     const botSprite = this.scene.add.sprite(botCenterX, botCenterY, botTextureKey, 0)
-      .setScale(0.6)
+      .setScale(0.85)
       .setScrollFactor(0)
       .setDepth(baseDepth + 3);
     if (this.scene.anims.exists('matbot_idle')) {

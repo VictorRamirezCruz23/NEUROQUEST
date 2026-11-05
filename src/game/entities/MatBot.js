@@ -20,12 +20,12 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
 
     // Escala equilibrada y proporcionada al personaje
-    this.setScale(0.5);
+    this.setScale(0.65);
     this.setCollideWorldBounds(true);
 
-    // Caja de colisión física arcade adaptada al sprite de 200x200
-    this.body.setSize(90, 150);
-    this.body.setOffset(55, 45);
+    // Caja de colisión física arcade adaptada al sprite calibrado de 240x240
+    this.body.setSize(140, 130);
+    this.body.setOffset(50, 85);
 
     // Parámetros de comportamiento y patrulla
     this.spawnX = x;

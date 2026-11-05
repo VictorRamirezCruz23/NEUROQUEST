@@ -89,15 +89,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (!this.isCrouching) {
         this.isCrouching = true;
         // Reducir la caja de colisión exactamente a la mitad (120 px de alto)
-        // Offset Y = 200 para que la base de los pies permanezca apoyada sobre el suelo
+        // Offset Y = 200 para que la base de los pies permanezca perfectamente apoyada sobre el suelo
         this.body.setSize(80, 120);
         this.body.setOffset(60, 200);
       }
 
-      // Permitir desplazamiento horizontal fluido mientras se camina agachado (65% de velocidad)
+      // Permitir desplazamiento horizontal fluido mientras se camina agachado (60% de velocidad estándar)
       const moveLeft = (this.cursors.left.isDown || this.keyA.isDown || this.virtualInput.left);
       const moveRight = (this.cursors.right.isDown || this.keyD.isDown || this.virtualInput.right);
-      const crouchSpeed = Math.round(this.speed * 0.65);
+      const crouchSpeed = Math.round(this.speed * 0.60);
 
       if (moveLeft && !moveRight) {
         this.setVelocityX(-crouchSpeed);
@@ -109,16 +109,30 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         this.setVelocityX(0);
       }
 
-      if (this.anims.currentAnim?.key !== 'player_crouch') {
-        this.play('player_crouch', true);
+      // Conmutar fluidamente entre caminar agachado e idle agachado
+      const isCrouchMoving = Math.abs(this.body.velocity.x) > 5;
+      const targetCrouchAnim = isCrouchMoving ? 'player_crouch_walk' : 'player_crouch';
+
+      if (this.anims.currentAnim?.key !== targetCrouchAnim) {
+        const animToPlay = this.scene.anims.exists(targetCrouchAnim) ? targetCrouchAnim : 'player_crouch';
+        this.play(animToPlay, true);
       }
-      return; // Mantenerse agachado mientras se presione la tecla
+      return; // Mantenerse en estado agachado mientras se mantenga presionada la tecla/botón
     } else {
       if (this.isCrouching) {
         this.isCrouching = false;
-        // Restaurar caja de colisión normal completa
+        // Restaurar caja de colisión normal completa de pie (240 px de alto)
         this.body.setSize(80, 240);
         this.body.setOffset(60, 80);
+
+        // Transición suave inmediata al incorporarse: caminar/correr si hay inercia o idle si está quieto
+        const moving = Math.abs(this.body.velocity.x) > 10;
+        if (moving) {
+          const isRunning = (this.keyShift.isDown || this.virtualInput.running);
+          this.play(isRunning ? 'player_run' : 'player_walk', true);
+        } else {
+          this.play('player_idle', true);
+        }
       }
     }
 
