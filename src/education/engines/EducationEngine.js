@@ -100,12 +100,35 @@ export class EducationEngine {
   /**
    * Obtiene un desafío aleatorio para eventos dinámicos (combate MatBot / ítems).
    * @param {string} [competencyId]
+   * @param {number} [targetLevel]
    * @returns {Object|null}
    */
-  getRandomChallenge(competencyId = null) {
+  getRandomChallenge(competencyId = null, targetLevel = null, excludeIds = null) {
     const compId = competencyId || sessionState.getActiveCompetency();
+    const lvl = targetLevel || this.getCurrentLevel(compId);
     this.resetTurnMetrics();
-    return ChallengeRepository.getRandomChallenge(compId);
+    const excludes = excludeIds || this.challengeHistory;
+    const challenge = ChallengeRepository.getRandomChallenge(compId, lvl, excludes);
+    if (challenge && !this.challengeHistory.includes(challenge.id)) {
+      this.challengeHistory.push(challenge.id);
+    }
+    return challenge;
+  }
+
+  /**
+   * Obtiene un lote de desafíos únicos barajados para los enemigos del nivel,
+   * garantizando preguntas y opciones de respuesta completamente diferentes entre sí.
+   * @param {string} [competencyId]
+   * @param {number} [targetLevel]
+   * @param {number} [count=1]
+   * @param {Array<string>|Set<string>} [excludeIds]
+   * @returns {Array<Object>}
+   */
+  getUniqueCombatBatch(competencyId = null, targetLevel = null, count = 1, excludeIds = null) {
+    const compId = competencyId || sessionState.getActiveCompetency();
+    const lvl = targetLevel || this.getCurrentLevel(compId);
+    const excludes = excludeIds || this.challengeHistory;
+    return ChallengeRepository.getUniqueBatch(compId, lvl, count, excludes);
   }
 
   resetTurnMetrics() {
@@ -135,9 +158,10 @@ export class EducationEngine {
    * de transferencia o de retención, actualizando los 6 indicadores pedagógicos.
    * @param {Object} challenge
    * @param {number} selectedOptionIndex
+   * @param {number} [timeSeconds]
    * @returns {Object}
    */
-  evaluateAnswer(challenge, selectedOptionIndex) {
+  evaluateAnswer(challenge, selectedOptionIndex, timeSeconds = 0) {
     this.currentAttempts++;
     const isCorrect = selectedOptionIndex === challenge.correctIndex;
     const compId = challenge.competencyId;
@@ -199,7 +223,7 @@ export class EducationEngine {
       );
     }
 
-    // 4. Adaptación de dificultad (solo para desafíos formativos)
+    // 4. Adaptación de dificultad (solo para desafíos formativos y de combate)
     let adaptiveResult = null;
     if (!challenge.isDiagnostic && !challenge.isTransfer && !challenge.isRetention) {
       adaptiveResult = adaptiveEngine.evaluatePerformance({
@@ -207,7 +231,8 @@ export class EducationEngine {
         currentLevel,
         isCorrect,
         attempts: this.currentAttempts,
-        hintsUsed: this.currentHintsRequested
+        hintsUsed: this.currentHintsRequested,
+        timeSeconds
       });
 
       if (progress) {
@@ -233,6 +258,7 @@ export class EducationEngine {
       selectedOptionIndex,
       attempts: this.currentAttempts,
       hintsUsed: this.currentHintsRequested,
+      timeSeconds: typeof timeSeconds === 'number' ? Number(timeSeconds.toFixed(1)) : 0,
       isDiagnostic: !!challenge.isDiagnostic,
       isTransfer: !!challenge.isTransfer,
       isRetention: !!challenge.isRetention,
@@ -251,6 +277,7 @@ export class EducationEngine {
       currentLevel: progress ? progress.currentLevel : currentLevel,
       attempts: this.currentAttempts,
       hintsUsed: this.currentHintsRequested,
+      timeSeconds: typeof timeSeconds === 'number' ? Number(timeSeconds.toFixed(1)) : 0,
       selectedOption: challenge.options[selectedOptionIndex],
       expectedOption: challenge.options[challenge.correctIndex],
       explanation: challenge.explanation,

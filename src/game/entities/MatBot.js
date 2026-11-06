@@ -39,6 +39,7 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
     this.isAlive = true;
     this.state = 'PATROL'; // PATROL, CHASE, ATTACKING, COMBAT, HURT, DYING, DEAD
     this.combatCooldownTimer = 0;
+    this.assignedChallenge = options.challenge || null;
 
     this.play('matbot_walk');
 
@@ -217,6 +218,22 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
     this.setVelocityX(this.direction * this.patrolSpeed);
     this.setFlipX(this.direction < 0);
     this.play('matbot_walk', true);
+  }
+
+  /**
+   * Asigna un desafío pedagógico al MatBot para su duelo de combate.
+   * @param {Object|null} challenge
+   */
+  setChallenge(challenge) {
+    this.assignedChallenge = challenge || null;
+  }
+
+  /**
+   * Obtiene el desafío pedagógico asignado al MatBot.
+   * @returns {Object|null}
+   */
+  getChallenge() {
+    return this.assignedChallenge;
   }
 
   destroyMatBot() {

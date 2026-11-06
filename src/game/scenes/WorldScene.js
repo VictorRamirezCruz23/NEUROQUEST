@@ -11,9 +11,10 @@ import { TheoryConsoleModal } from '../../ui/components/TheoryConsoleModal.js';
 import { SoundManager } from '../audio/SoundManager.js';
 import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { DiagnosticManager } from '../../education/assessments/DiagnosticManager.js';
-import { DIFFICULTY_LABELS } from '../../education/adaptive/AdaptiveEngine.js';
+import { DIFFICULTY_LABELS, adaptiveEngine } from '../../education/adaptive/AdaptiveEngine.js';
 import { authModalController } from '../../ui/components/AuthModalController.js';
 import { authService } from '../../services/firebase/authService.js';
+import { tutorService } from '../../services/gemini/tutorService.js';
 
 /**
  * WorldScene.js — Escena del Mundo Interactivo y Plataformas 2D de NEUROQUEST.
@@ -131,6 +132,9 @@ export class WorldScene extends Phaser.Scene {
 
     // 15. Listeners de teclado y eventos
     this.setupEventListeners();
+
+    // 16. Pre-cargar desafíos dinámicos asignados a cada MatBot
+    this.preloadAndAssignEnemyChallenges();
   }
 
   setupEventListeners() {
@@ -387,6 +391,9 @@ export class WorldScene extends Phaser.Scene {
       this.matbotGroup.add(bot);
       this.matbots.push(bot);
     });
+
+    // Asignar desafíos pre-cargados a los nuevos enemigos generados
+    this.preloadAndAssignEnemyChallenges();
 
     // 4. Spawn condicional de ítems de vida
     chunkData.healthItems.forEach(h => {
@@ -651,7 +658,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.battleArena && !this.battleArena.isOpen) {
       this.battleArena.startBattle({
         matbot,
-        onCombatResult: (isCorrect, challenge, bot) => {
+        onCombatResult: (isCorrect, challenge, bot, meta) => {
           this.combatTotalQuestions++;
 
           if (isCorrect) {
@@ -662,11 +669,19 @@ export class WorldScene extends Phaser.Scene {
                 this.showFloatingNotice(this.player.x, this.player.y - 60, '⚔️ ¡MATBOT DESTRUIDO!', '#34d399');
               });
             }
+
+            // Si el jugador respondió rápido y subió de nivel, recalibrar los MatBots restantes en segundo plano
+            if (meta?.isLevelUp && meta?.newLevel) {
+              this.recalibrateRemainingEnemies(meta.newLevel);
+            } else {
+              this.refreshRemainingEnemyChallenges();
+            }
           } else {
             this.damagePlayer(1);
             if (bot && typeof bot.setCooldown === 'function') {
               bot.setCooldown(3500);
             }
+            this.refreshRemainingEnemyChallenges();
           }
 
           this.updateAccuracyHUD();
@@ -1175,5 +1190,165 @@ export class WorldScene extends Phaser.Scene {
     } else {
       this.interactionPrompt.setVisible(false);
     }
+  }
+
+  /**
+   * Pre-carga un lote de desafíos con Gemini / repositorio local
+   * y los asigna individualmente a cada MatBot vivo en el mundo.
+   */
+  async preloadAndAssignEnemyChallenges() {
+    if (!this.matbots || this.matbots.length === 0) return;
+    const aliveBots = this.matbots.filter(b => b && b.isAlive && b.active);
+    if (aliveBots.length === 0) return;
+
+    const compId = sessionState.getActiveCompetency();
+    const meta = sessionState.getActiveCompetencyMeta();
+    const currentLevel = educationEngine.getCurrentLevel(compId);
+    const metrics = educationEngine.getLearningMetrics(compId);
+    const recentHistory = adaptiveEngine.getRecentHistory(compId);
+    const times = recentHistory.filter(h => h.timeSeconds && h.timeSeconds > 0);
+    const avgResponseTime = times.length > 0
+      ? Math.round(times.reduce((acc, h) => acc + h.timeSeconds, 0) / times.length)
+      : 12;
+
+    const playerParams = {
+      competencyId: compId,
+      competencyName: meta?.name || compId,
+      currentLevel,
+      accuracy: metrics?.performance?.accuracy || 0,
+      avgResponseTime,
+      recentSkills: meta?.skills || [],
+      previousStatements: educationEngine.challengeHistory || [],
+      usedChallengeIds: educationEngine.challengeHistory || []
+    };
+
+    try {
+      const challenges = await tutorService.preloadEnemyChallenges(playerParams, aliveBots.length);
+      const assignedInRoom = new Set([
+        ...(educationEngine.challengeHistory || [])
+      ]);
+
+      aliveBots.forEach((bot, index) => {
+        if (!bot || typeof bot.setChallenge !== 'function') return;
+
+        // MatBot[0], MatBot[1], etc., reciben cada uno un índice diferente del lote generado (challenges[index])
+        let candidate = (Array.isArray(challenges) && challenges[index] && !assignedInRoom.has(challenges[index].id) && !assignedInRoom.has(challenges[index].statement))
+          ? challenges[index]
+          : null;
+
+        // Si no está disponible en ese índice, buscar otro desafío no asignado en el lote
+        if (!candidate && Array.isArray(challenges)) {
+          candidate = challenges.find(c => c && !assignedInRoom.has(c.id) && !assignedInRoom.has(c.statement));
+        }
+
+        // Si se agotó el lote, extraer del respaldo local barajado excluyendo los ya asignados
+        if (!candidate) {
+          candidate = ChallengeRepository.getRandomChallenge(compId, currentLevel, assignedInRoom);
+        }
+
+        if (candidate) {
+          assignedInRoom.add(candidate.id);
+          assignedInRoom.add(candidate.statement);
+          bot.setChallenge(candidate);
+        }
+      });
+    } catch (err) {
+      console.warn('[WorldScene] Error precargando desafíos para enemigos:', err);
+    }
+  }
+
+  /**
+   * Recalibra en segundo plano los desafíos de los MatBots vivos restantes
+   * cuando el jugador sube de nivel por rapidez/precisión.
+   * @param {number} newLevel
+   */
+  async recalibrateRemainingEnemies(newLevel) {
+    if (!this.matbots || this.matbots.length === 0) return;
+    const aliveBots = this.matbots.filter(b => b && b.isAlive && b.active);
+    if (aliveBots.length === 0) return;
+
+    const compId = sessionState.getActiveCompetency();
+    const meta = sessionState.getActiveCompetencyMeta();
+    const metrics = educationEngine.getLearningMetrics(compId);
+    const recentHistory = adaptiveEngine.getRecentHistory(compId);
+    const times = recentHistory.filter(h => h.timeSeconds && h.timeSeconds > 0);
+    const avgResponseTime = times.length > 0
+      ? Math.round(times.reduce((acc, h) => acc + h.timeSeconds, 0) / times.length)
+      : 10;
+
+    const playerParams = {
+      competencyId: compId,
+      competencyName: meta?.name || compId,
+      currentLevel: newLevel,
+      accuracy: metrics?.performance?.accuracy || 0,
+      avgResponseTime,
+      recentSkills: meta?.skills || [],
+      previousStatements: educationEngine.challengeHistory || [],
+      usedChallengeIds: educationEngine.challengeHistory || []
+    };
+
+    try {
+      const challenges = await tutorService.preloadEnemyChallenges(playerParams, aliveBots.length);
+      const assignedInRoom = new Set([
+        ...(educationEngine.challengeHistory || [])
+      ]);
+
+      aliveBots.forEach((bot, index) => {
+        if (!bot || typeof bot.setChallenge !== 'function') return;
+
+        let candidate = (Array.isArray(challenges) && challenges[index] && !assignedInRoom.has(challenges[index].id) && !assignedInRoom.has(challenges[index].statement))
+          ? challenges[index]
+          : null;
+
+        if (!candidate && Array.isArray(challenges)) {
+          candidate = challenges.find(c => c && !assignedInRoom.has(c.id) && !assignedInRoom.has(c.statement));
+        }
+
+        if (!candidate) {
+          candidate = ChallengeRepository.getRandomChallenge(compId, newLevel, assignedInRoom);
+        }
+
+        if (candidate) {
+          assignedInRoom.add(candidate.id);
+          assignedInRoom.add(candidate.statement);
+          bot.setChallenge(candidate);
+        }
+      });
+    } catch (err) {
+      console.warn('[WorldScene] Error al recalibrar desafíos de MatBots restantes:', err);
+    }
+  }
+
+  /**
+   * Refresca los desafíos de los MatBots vivos para garantizar que ninguno
+   * conserve una pregunta que ya fue respondida en el historial o duplicada en la sala.
+   */
+  refreshRemainingEnemyChallenges() {
+    if (!this.matbots || this.matbots.length === 0) return;
+    const aliveBots = this.matbots.filter(b => b && b.isAlive && b.active);
+    if (aliveBots.length === 0) return;
+
+    const compId = sessionState.getActiveCompetency();
+    const currentLevel = educationEngine.getCurrentLevel(compId);
+    const assignedInRoom = new Set([
+      ...(educationEngine.challengeHistory || [])
+    ]);
+
+    aliveBots.forEach((bot, index) => {
+      if (!bot || typeof bot.getChallenge !== 'function') return;
+      const ch = bot.getChallenge();
+      if (ch && ch.difficulty === currentLevel && !assignedInRoom.has(ch.id) && !assignedInRoom.has(ch.statement)) {
+        assignedInRoom.add(ch.id);
+        assignedInRoom.add(ch.statement);
+        return;
+      }
+
+      const fresh = ChallengeRepository.getRandomChallenge(compId, currentLevel, assignedInRoom);
+      if (fresh) {
+        assignedInRoom.add(fresh.id);
+        assignedInRoom.add(fresh.statement);
+        bot.setChallenge(fresh);
+      }
+    });
   }
 }

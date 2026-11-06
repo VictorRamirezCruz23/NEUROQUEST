@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { authService } from '../../services/firebase/authService.js';
+import { sessionState } from '../../core/sessionState.js';
+import { adaptiveEngine } from '../../education/adaptive/AdaptiveEngine.js';
+import { tutorService } from '../../services/gemini/tutorService.js';
 
 /**
  * BattleArenaModal.js — Sistema de combate retro por turnos estilo RPG / Pokémon para NEUROQUEST.
@@ -47,7 +50,16 @@ export class BattleArenaModal {
 
   setupKeyboardListeners() {
     this.keyHandler = (event) => {
-      if (!this.isOpen || this.isResolving) return;
+      if (!this.isOpen) return;
+
+      if (this.isResolving) {
+        if (event.code === 'Enter' || event.code === 'Space') {
+          if (typeof this.finishResolution === 'function') {
+            this.finishResolution();
+          }
+        }
+        return;
+      }
 
       const code = event.code;
       if (code === 'Digit1' || code === 'KeyA') this.handleOptionSelect(0);
@@ -60,18 +72,19 @@ export class BattleArenaModal {
   }
 
   /**
-   * Inicia el combate táctico con la transición visual estilo Pokémon.
+   * Inicia el combate táctico con la transición visual estilo Pokémon y carga adaptativa de IA.
    * @param {Object} options
    * @param {import('../../game/entities/MatBot.js').MatBot} options.matbot
    * @param {Function} options.onCombatResult - Callback (isCorrect, challenge, matbot)
    */
-  startBattle(options = {}) {
+  async startBattle(options = {}) {
     if (this.isOpen) return;
 
     this.currentBot = options.matbot;
     this.onCombatResult = options.onCombatResult;
     this.isOpen = true;
     this.isResolving = false;
+    this.currentChallenge = null;
 
     // Pausar o inmovilizar jugador
     if (this.player && typeof this.player.freeze === 'function') {
@@ -88,12 +101,52 @@ export class BattleArenaModal {
       this.scene.soundManager.playLaser();
     }
 
-    // Seleccionar desafío curricular aleatorio
-    this.currentChallenge = educationEngine.getRandomChallenge();
-    if (!this.currentChallenge) {
-      console.warn('[BattleArenaModal] Sin desafío disponible en el banco.');
-      this.close();
-      return;
+    // Parámetros dinámicos del cadete para calibrar la pregunta del combate
+    const compId = sessionState.getActiveCompetency();
+    const currentLevel = educationEngine.getCurrentLevel(compId);
+
+    // 1. Verificar primero si el enemigo ya tiene un desafío asignado del nivel actual y no ha sido preguntado
+    const preAssigned = (this.currentBot && typeof this.currentBot.getChallenge === 'function')
+      ? this.currentBot.getChallenge()
+      : null;
+
+    const isAlreadyAsked = preAssigned && (
+      educationEngine.challengeHistory.includes(preAssigned.id) ||
+      educationEngine.challengeHistory.includes(preAssigned.statement)
+    );
+
+    let challengePromise = null;
+
+    if (preAssigned && preAssigned.difficulty === currentLevel && !isAlreadyAsked) {
+      // Usar de inmediato sin esperar a la red
+      this.currentChallenge = preAssigned;
+      if (typeof this.currentBot.setChallenge === 'function') {
+        this.currentBot.setChallenge(null);
+      }
+    } else {
+      // Si no tiene desafío o la dificultad cambió, solicitar en segundo plano con respaldo local
+      const meta = sessionState.getActiveCompetencyMeta();
+      const metrics = educationEngine.getLearningMetrics(compId);
+      const recentHistory = adaptiveEngine.getRecentHistory(compId);
+      const times = recentHistory.filter(h => h.timeSeconds && h.timeSeconds > 0);
+      const avgResponseTime = times.length > 0
+        ? Math.round(times.reduce((acc, h) => acc + h.timeSeconds, 0) / times.length)
+        : 12;
+
+      const playerParams = {
+        competencyId: compId,
+        competencyName: meta?.name || compId,
+        currentLevel,
+        accuracy: metrics?.performance?.accuracy || 0,
+        avgResponseTime,
+        recentSkills: meta?.skills || [],
+        previousStatements: educationEngine.challengeHistory || []
+      };
+
+      challengePromise = tutorService.requestDynamicCombatChallenge(playerParams).catch(err => {
+        console.warn('[BattleArenaModal] Fallo solicitando combate a IA, usando respaldo:', err);
+        return educationEngine.getRandomChallenge(compId, currentLevel);
+      });
     }
 
     // Transición estilo Pokémon: Doble flash de contraste y micro-zoom
@@ -110,9 +163,28 @@ export class BattleArenaModal {
         duration: 300,
         yoyo: true,
         ease: 'Quad.easeInOut',
-        onComplete: () => {
+        onComplete: async () => {
           if (!this.isOpen) return;
           cam.setZoom(1);
+
+          if (!this.currentChallenge && challengePromise) {
+            try {
+              this.currentChallenge = await challengePromise;
+            } catch (e) {
+              this.currentChallenge = null;
+            }
+          }
+
+          if (!this.currentChallenge || educationEngine.challengeHistory.includes(this.currentChallenge.id)) {
+            this.currentChallenge = educationEngine.getRandomChallenge(compId, currentLevel);
+          }
+
+          // Registrar inmediatamente en el historial para evitar cualquier duplicación
+          if (this.currentChallenge && !educationEngine.challengeHistory.includes(this.currentChallenge.id)) {
+            educationEngine.challengeHistory.push(this.currentChallenge.id);
+          }
+
+          if (!this.isOpen) return;
           this.renderArena();
         }
       });
@@ -131,6 +203,7 @@ export class BattleArenaModal {
 
   renderArena() {
     this.cleanupVisuals();
+    this.challengeStartTime = Date.now();
 
     const { width, height } = this.scene.scale;
     const baseDepth = 4000;
@@ -397,7 +470,7 @@ export class BattleArenaModal {
       hitZone.on('pointerout', () => drawBtn(false));
       hitZone.on('pointerdown', () => this.handleOptionSelect(idx));
 
-      this.optionButtons.push({ btnGfx, optLabel, hitZone, drawBtn });
+      this.optionButtons.push({ btnGfx, optLabel, hitZone, drawBtn, ox, oy, optW, optH });
     });
   }
 
@@ -405,143 +478,225 @@ export class BattleArenaModal {
     if (this.isResolving || !this.currentChallenge || !this.isOpen) return;
     this.isResolving = true;
 
-    const isCorrect = (index === this.currentChallenge.correctIndex);
-    const resultColor = isCorrect ? '#34d399' : '#ef4444';
-    const resultMsg = isCorrect
-      ? '⚡ ¡IMPACTO CRÍTICO! Respuesta acertada. MatBot neutralizado.'
-      : '⚠️ ¡CÁLCULO ERRÓNEO! MatBot dispara láser. Blindaje dañado (-1 vida).';
+    try {
+      const timeSeconds = this.challengeStartTime
+        ? (Date.now() - this.challengeStartTime) / 1000
+        : 0;
 
-    // Desactivar botones de inmediato
-    this.optionButtons.forEach(b => {
-      if (b && b.hitZone && b.hitZone.disableInteractive) {
-        b.hitZone.disableInteractive();
+      const compId = this.currentChallenge.competencyId || sessionState.getActiveCompetency();
+      const prevLevel = educationEngine.getCurrentLevel(compId);
+      const evalResult = educationEngine.evaluateAnswer(this.currentChallenge, index, timeSeconds);
+      const isCorrect = evalResult.isCorrect;
+      const newLevel = evalResult.currentLevel;
+      const isLevelUp = isCorrect && (newLevel > prevLevel);
+      const resultColor = isCorrect ? '#34d399' : '#ef4444';
+      const correctIdx = typeof this.currentChallenge.correctIndex === 'number'
+        ? this.currentChallenge.correctIndex
+        : 0;
+
+      let resultMsg = isCorrect
+        ? '⚡ ¡IMPACTO CRÍTICO! Respuesta acertada. MatBot neutralizado.'
+        : '⚠️ ¡CÁLCULO ERRÓNEO! MatBot dispara láser. Blindaje dañado (-1 vida).';
+
+      if (isCorrect && evalResult.adaptiveResult && evalResult.adaptiveResult.action === 'INCREASE') {
+        resultMsg += `\n🚀 ¡Dificultad elevada a Nivel ${evalResult.currentLevel}! (${evalResult.adaptiveResult.reason})`;
       }
-    });
 
-    // Actualización protegida del texto con ajuste dinámico
-    if (this.promptText && this.promptText.active && typeof this.promptText.setText === 'function') {
-      try {
-        const expl = this.currentChallenge.explanation ? `\n💡 ${this.currentChallenge.explanation}` : '';
-        this.promptText.setText(`${resultMsg}${expl}`);
-        this.promptText.setColor(resultColor);
-        if (this.promptText.height > 98) {
-          this.promptText.setFontSize(10.5);
-          this.promptText.setLineSpacing(1);
+      // Desactivar interacción y pintar retroalimentación visual inmediata en las opciones
+      this.optionButtons.forEach((b, idx) => {
+        if (!b) return;
+        if (b.hitZone && b.hitZone.disableInteractive) {
+          b.hitZone.disableInteractive();
         }
-      } catch (err) {
-        console.warn('[BattleArenaModal] Safe catch al actualizar promptText:', err);
-      }
-    }
-
-    if (isCorrect) {
-      // Audio de acierto
-      if (this.scene.soundManager) {
-        this.scene.soundManager.playCorrect();
-      }
-
-      // Animación de golpe del Cadete (Player)
-      if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
-        const atkKey = this.scene.anims.exists('player_attack') ? 'player_attack' : 'player_punch';
-        if (this.scene.anims.exists(atkKey)) {
-          this.arenaPlayerSprite.play(atkKey, true);
-          this.arenaPlayerSprite.once(`animationcomplete-${atkKey}`, () => {
-            if (this.arenaPlayerSprite && this.arenaPlayerSprite.active && this.scene.anims.exists('player_idle')) {
-              this.arenaPlayerSprite.play('player_idle', true);
-            }
-          });
+        if (b.btnGfx && b.btnGfx.active) {
+          b.btnGfx.clear();
+          if (idx === index) {
+            // Opción seleccionada por el usuario
+            b.btnGfx.fillStyle(isCorrect ? 0x065f46 : 0x7f1d1d, 0.95);
+            b.btnGfx.fillRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
+            b.btnGfx.lineStyle(2, isCorrect ? 0x10b981 : 0xef4444, 1);
+            b.btnGfx.strokeRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
+          } else if (!isCorrect && idx === correctIdx) {
+            // Opción correcta resaltada pedagógicamente
+            b.btnGfx.fillStyle(0x064e3b, 0.85);
+            b.btnGfx.fillRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
+            b.btnGfx.lineStyle(2, 0x34d399, 1);
+            b.btnGfx.strokeRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
+          } else {
+            b.btnGfx.fillStyle(0x0a0f1d, 0.6);
+            b.btnGfx.fillRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
+          }
         }
-      }
+      });
 
-      // Desencadenar animación activa en la entidad del jugador en el mundo
-      if (this.player && typeof this.player.performAttack === 'function') {
-        this.player.performAttack();
-      }
-
-      // Animación en MatBot (Derrota)
-      if (this.botHpBar && this.botHpBar.active) {
-        const hpTween = this.scene.tweens.add({
-          targets: this.botHpBar,
-          width: 0,
-          duration: 350,
-          ease: 'Power2'
-        });
-        this.activeTweens.push(hpTween);
-      }
-
-      if (this.arenaBotSprite && this.arenaBotSprite.active) {
-        const botTween = this.scene.tweens.add({
-          targets: this.arenaBotSprite,
-          alpha: 0,
-          scaleX: 0.8,
-          scaleY: 0.8,
-          tint: 0xff0000,
-          duration: 600,
-          yoyo: true,
-          repeat: 1
-        });
-        this.activeTweens.push(botTween);
-      }
-
-      this.scene.cameras.main.flash(200, 56, 189, 248);
-    } else {
-      // Audio de error y láser de contraataque
-      if (this.scene.soundManager) {
-        this.scene.soundManager.playError();
-        this.scene.time.delayedCall(150, () => {
-          this.scene.soundManager?.playHit();
-        });
-      }
-
-      // Animación de ataque del MatBot
-      if (this.arenaBotSprite && this.arenaBotSprite.active) {
-        if (this.scene.anims.exists('matbot_attack')) {
-          this.arenaBotSprite.play('matbot_attack', true);
-          this.arenaBotSprite.once('animationcomplete-matbot_attack', () => {
-            if (this.arenaBotSprite && this.arenaBotSprite.active && this.scene.anims.exists('matbot_walk')) {
-              this.arenaBotSprite.play('matbot_walk', true);
-            }
-          });
+      // Actualización protegida del texto con ajuste dinámico
+      if (this.promptText && this.promptText.active && typeof this.promptText.setText === 'function') {
+        try {
+          const expl = this.currentChallenge.explanation ? `\n💡 ${this.currentChallenge.explanation}` : '';
+          const tapPrompt = '\n\n[ Clic o pulsa ENTER / ESPACIO para continuar ]';
+          this.promptText.setText(`${resultMsg}${expl}${tapPrompt}`);
+          this.promptText.setColor(resultColor);
+          if (this.promptText.height > 98) {
+            this.promptText.setFontSize(10.5);
+            this.promptText.setLineSpacing(1);
+          }
+        } catch (err) {
+          console.warn('[BattleArenaModal] Safe catch al actualizar promptText:', err);
         }
       }
 
-      // Animación de impacto en Cadete
-      if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
-        const playerTween = this.scene.tweens.add({
-          targets: this.arenaPlayerSprite,
-          tint: 0xff0000,
-          alpha: 0.3,
-          duration: 90,
-          yoyo: true,
-          repeat: 4,
-          onComplete: () => {
-            if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
-              this.arenaPlayerSprite.clearTint();
-              this.arenaPlayerSprite.setAlpha(1.0);
-              if (this.scene.anims.exists('player_idle')) {
+      if (isCorrect) {
+        // Audio de acierto
+        if (this.scene.soundManager) {
+          this.scene.soundManager.playCorrect();
+        }
+
+        // Animación de golpe del Cadete (Player)
+        if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
+          const atkKey = this.scene.anims.exists('player_attack') ? 'player_attack' : 'player_punch';
+          if (this.scene.anims.exists(atkKey)) {
+            this.arenaPlayerSprite.play(atkKey, true);
+            this.arenaPlayerSprite.once(`animationcomplete-${atkKey}`, () => {
+              if (this.arenaPlayerSprite && this.arenaPlayerSprite.active && this.scene.anims.exists('player_idle')) {
                 this.arenaPlayerSprite.play('player_idle', true);
               }
-            }
+            });
           }
-        });
-        this.activeTweens.push(playerTween);
+        }
+
+        // Desencadenar animación activa en la entidad del jugador en el mundo
+        if (this.player && typeof this.player.performAttack === 'function') {
+          this.player.performAttack();
+        }
+
+        // Animación en barra de vida del MatBot
+        if (this.botHpBar && this.botHpBar.active) {
+          const hpTween = this.scene.tweens.add({
+            targets: this.botHpBar,
+            width: 0,
+            duration: 300,
+            ease: 'Power2'
+          });
+          this.activeTweens.push(hpTween);
+        }
+
+        // Animación de impacto en MatBot (usando setTint seguro sin tweening de tint directo)
+        if (this.arenaBotSprite && this.arenaBotSprite.active) {
+          this.arenaBotSprite.setTint(0xef4444);
+          const botTween = this.scene.tweens.add({
+            targets: this.arenaBotSprite,
+            alpha: 0.2,
+            scaleX: 0.85,
+            scaleY: 0.85,
+            duration: 350,
+            yoyo: true,
+            repeat: 1,
+            onComplete: () => {
+              if (this.arenaBotSprite && this.arenaBotSprite.active) {
+                this.arenaBotSprite.clearTint();
+                this.arenaBotSprite.setAlpha(1.0);
+              }
+            }
+          });
+          this.activeTweens.push(botTween);
+        }
+
+        this.scene.cameras.main.flash(180, 56, 189, 248);
+      } else {
+        // Audio de error y láser de contraataque
+        if (this.scene.soundManager) {
+          this.scene.soundManager.playError();
+          this.scene.time.delayedCall(120, () => {
+            this.scene.soundManager?.playHit();
+          });
+        }
+
+        // Animación de ataque del MatBot
+        if (this.arenaBotSprite && this.arenaBotSprite.active) {
+          if (this.scene.anims.exists('matbot_attack')) {
+            this.arenaBotSprite.play('matbot_attack', true);
+            this.arenaBotSprite.once('animationcomplete-matbot_attack', () => {
+              if (this.arenaBotSprite && this.arenaBotSprite.active && this.scene.anims.exists('matbot_walk')) {
+                this.arenaBotSprite.play('matbot_walk', true);
+              }
+            });
+          }
+        }
+
+        // Animación de impacto en Cadete
+        if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
+          this.arenaPlayerSprite.setTint(0xef4444);
+          const playerTween = this.scene.tweens.add({
+            targets: this.arenaPlayerSprite,
+            alpha: 0.3,
+            duration: 90,
+            yoyo: true,
+            repeat: 3,
+            onComplete: () => {
+              if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
+                this.arenaPlayerSprite.clearTint();
+                this.arenaPlayerSprite.setAlpha(1.0);
+                if (this.scene.anims.exists('player_idle')) {
+                  this.arenaPlayerSprite.play('player_idle', true);
+                }
+              }
+            }
+          });
+          this.activeTweens.push(playerTween);
+        }
+
+        this.scene.cameras.main.flash(200, 239, 68, 68);
       }
 
-      this.scene.cameras.main.flash(250, 239, 68, 68);
-    }
-
-    // Temporizador seguro de resolución
-    const endTimer = this.scene.time.delayedCall(1650, () => {
+      // Controlador unificado para finalizar la resolución
+      let resolved = false;
       const challengeRef = this.currentChallenge;
       const botRef = this.currentBot;
       const callback = this.onCombatResult;
 
-      this.close();
+      this.finishResolution = () => {
+        if (resolved) return;
+        resolved = true;
+        this.finishResolution = null;
 
-      if (typeof callback === 'function') {
-        callback(isCorrect, challengeRef, botRef);
+        this.close();
+
+        if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
+          this.scene.updateHUDLevel();
+        }
+
+        if (typeof callback === 'function') {
+          callback(isCorrect, challengeRef, botRef, { isLevelUp, newLevel, prevLevel });
+        }
+      };
+
+      // Si el usuario hace clic en cualquier parte durante la resolución, avanzar de inmediato
+      const quickAdvanceHandler = () => {
+        if (this.finishResolution) {
+          this.finishResolution();
+        }
+      };
+      this.scene.input.once('pointerdown', quickAdvanceHandler);
+
+      // Temporizador automático seguro de resolución (1050ms)
+      const endTimer = this.scene.time.delayedCall(1050, () => {
+        if (this.scene && this.scene.input) {
+          this.scene.input.off('pointerdown', quickAdvanceHandler);
+        }
+        if (this.finishResolution) {
+          this.finishResolution();
+        }
+      });
+      this.pendingTimers.push(endTimer);
+
+    } catch (err) {
+      console.error('[BattleArenaModal] Error inesperado en resolución de combate:', err);
+      // Garantía de contingencia: nunca dejar congelado el juego ni al jugador
+      this.close();
+      if (typeof this.onCombatResult === 'function') {
+        this.onCombatResult(false, this.currentChallenge, this.currentBot, {});
       }
-    });
-    this.pendingTimers.push(endTimer);
+    }
   }
 
   cleanupVisuals() {
@@ -592,6 +747,9 @@ export class BattleArenaModal {
   close() {
     this.isOpen = false;
     this.isResolving = false;
+    this.finishResolution = null;
+    this.currentChallenge = null;
+    this.currentBot = null;
     this.cleanupVisuals();
 
     // Restaurar movimiento de jugador
