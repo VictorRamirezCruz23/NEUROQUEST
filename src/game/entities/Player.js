@@ -1,52 +1,41 @@
 import Phaser from 'phaser';
 
 /**
- * Entidad principal del jugador en NEUROQUEST.
- * Maneja físicas de plataformas laterales, máquina de estados, controles híbridos
- * (teclado + controles táctiles virtuales para móviles), animaciones completas y acción de agacharse (crouch).
+ * Player.js — Entidad principal del jugador en NEUROQUEST.
+ * Incluye físicas mejoradas, Coyote Time, Jump Buffer, inercia y control híbrido.
  */
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  /**
-   * @param {Phaser.Scene} scene Escena contenedora
-   * @param {number} x Coordenada X inicial
-   * @param {number} y Coordenada Y inicial
-   */
   constructor(scene, x, y) {
     const texKey = scene.textures.exists('player_texture') ? 'player_texture' : 'player';
     super(scene, x, y, texKey, 1);
 
-    // Añadir a la escena y al sistema de físicas Arcade
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Escalar sprite de alta resolución manteniendo nitidez pixel art
     this.setScale(0.28);
-
-    // Configuración del cuerpo físico
     this.setCollideWorldBounds(true);
-    // Ajustar caja de colisión normal (80x240 px con offset 60, 80)
     this.body.setSize(80, 240);
     this.body.setOffset(60, 80);
 
-    // Parámetros de física de movimiento
-    this.speed = 220;        // Velocidad de caminata estándar
-    this.runSpeed = 330;     // Velocidad de carrera / sprint
-    this.jumpForce = -420;   // Impulso vertical de salto
+    // Parámetros de física de movimiento optimizados
+    this.speed = 220;
+    this.runSpeed = 330;
+    this.jumpForce = -420;
     this.isLocked = false;
     this.isAttacking = false;
     this.isCrouching = false;
 
-    // Estado de entradas virtuales para controles táctiles móviles
+    // Variables para Coyote Time y Jump Buffer
+    this.coyoteTimer = 0;
+    this.jumpBufferTimer = 0;
+    this.coyoteDuration = 120; // milisegundos de gracia al caer de una plataforma
+    this.jumpBufferDuration = 100; // milisegundos de memoria de salto
+
     this.virtualInput = {
-      left: false,
-      right: false,
-      running: false,
-      jump: false,
-      punch: false,
-      crouch: false
+      left: false, right: false, running: false, jump: false, punch: false, crouch: false
     };
 
-    // Configuración de controles de teclado
+    // Controles de teclado
     this.cursors = scene.input.keyboard.createCursorKeys();
     this.keyA = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
     this.keyD = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
@@ -58,22 +47,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.keyK = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.K);
     this.keyF = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     this.keyX = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-    this.keyE = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
 
-    // Iniciar en animación idle
     this.play('player_idle');
 
-    // Escuchar fin de animaciones de ataque/golpe
     this.on('animationcomplete-player_punch', () => this.finishAttack());
     this.on('animationcomplete-player_attack', () => this.finishAttack());
   }
 
-  /**
-   * Bucle de actualización por fotograma.
-   * Integra armónicamente eventos físicos tanto de teclado como de pantalla táctil.
-   * @param {number} time
-   * @param {number} delta
-   */
   update(time, delta) {
     if (this.isLocked) {
       this.setVelocityX(0);
@@ -82,19 +62,36 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     const onFloor = this.body.blocked.down || this.body.touching.down;
 
-    // Acción de Agacharse y Caminar Agachado (Tecla S o Flecha Abajo o botón táctil)
+    // Actualizar Coyote Time
+    if (onFloor) {
+      this.coyoteTimer = this.coyoteDuration;
+    } else if (this.coyoteTimer > 0) {
+      this.coyoteTimer -= delta;
+    }
+
+    // Actualizar Jump Buffer
+    const jumpRequestedRaw = Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
+                            Phaser.Input.Keyboard.JustDown(this.keyW) ||
+                            Phaser.Input.Keyboard.JustDown(this.keySpace) ||
+                            this.virtualInput.jump;
+
+    if (jumpRequestedRaw) {
+      this.jumpBufferTimer = this.jumpBufferDuration;
+      this.virtualInput.jump = false;
+    } else if (this.jumpBufferTimer > 0) {
+      this.jumpBufferTimer -= delta;
+    }
+
+    // Acción de Agacharse
     const crouchRequested = (this.cursors.down.isDown || this.keyS.isDown || this.virtualInput.crouch) && onFloor;
 
     if (crouchRequested) {
       if (!this.isCrouching) {
         this.isCrouching = true;
-        // Reducir la caja de colisión exactamente a la mitad (120 px de alto)
-        // Offset Y = 200 para que la base de los pies permanezca perfectamente apoyada sobre el suelo
         this.body.setSize(80, 120);
         this.body.setOffset(60, 200);
       }
 
-      // Permitir desplazamiento horizontal fluido mientras se camina agachado (60% de velocidad estándar)
       const moveLeft = (this.cursors.left.isDown || this.keyA.isDown || this.virtualInput.left);
       const moveRight = (this.cursors.right.isDown || this.keyD.isDown || this.virtualInput.right);
       const crouchSpeed = Math.round(this.speed * 0.60);
@@ -109,34 +106,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         this.setVelocityX(0);
       }
 
-      // Conmutar fluidamente entre caminar agachado e idle agachado
       const isCrouchMoving = Math.abs(this.body.velocity.x) > 5;
       const targetCrouchAnim = isCrouchMoving ? 'player_crouch_walk' : 'player_crouch';
-
       if (this.anims.currentAnim?.key !== targetCrouchAnim) {
-        const animToPlay = this.scene.anims.exists(targetCrouchAnim) ? targetCrouchAnim : 'player_crouch';
-        this.play(animToPlay, true);
+        this.play(this.scene.anims.exists(targetCrouchAnim) ? targetCrouchAnim : 'player_crouch', true);
       }
-      return; // Mantenerse en estado agachado mientras se mantenga presionada la tecla/botón
+      return;
     } else {
       if (this.isCrouching) {
         this.isCrouching = false;
-        // Restaurar caja de colisión normal completa de pie (240 px de alto)
         this.body.setSize(80, 240);
         this.body.setOffset(60, 80);
-
-        // Transición suave inmediata al incorporarse: caminar/correr si hay inercia o idle si está quieto
-        const moving = Math.abs(this.body.velocity.x) > 10;
-        if (moving) {
-          const isRunning = (this.keyShift.isDown || this.virtualInput.running);
-          this.play(isRunning ? 'player_run' : 'player_walk', true);
-        } else {
-          this.play('player_idle', true);
-        }
       }
     }
 
-    // Acción de golpe (Teclas J, K, F, X o botón táctil virtual)
+    // Ataque
     const punchTriggered = Phaser.Input.Keyboard.JustDown(this.keyJ) ||
                            Phaser.Input.Keyboard.JustDown(this.keyK) ||
                            Phaser.Input.Keyboard.JustDown(this.keyF) ||
@@ -149,7 +133,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (this.isAttacking) {
-      // Si la animación terminó o cambió inesperadamente, liberar de inmediato el estado
       const curKey = this.anims.currentAnim?.key;
       if (!this.anims.isPlaying || (curKey !== 'player_attack' && curKey !== 'player_punch')) {
         this.finishAttack();
@@ -159,78 +142,63 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    // Fusión de entradas de teclado y entradas virtuales táctiles
+    // Movimiento horizontal con inercia suave
     const moveLeft = (this.cursors.left.isDown || this.keyA.isDown || this.virtualInput.left);
     const moveRight = (this.cursors.right.isDown || this.keyD.isDown || this.virtualInput.right);
     const isRunning = (this.keyShift.isDown || this.virtualInput.running);
-    const currentSpeed = isRunning ? this.runSpeed : this.speed;
+    const targetSpeed = isRunning ? this.runSpeed : this.speed;
 
-    const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
-                        Phaser.Input.Keyboard.JustDown(this.keyW) ||
-                        Phaser.Input.Keyboard.JustDown(this.keySpace) ||
-                        this.virtualInput.jump;
-
-    // Consumir el pulso de salto virtual una vez evaluado
-    if (this.virtualInput.jump) {
-      this.virtualInput.jump = false;
-    }
-
-    // Movimiento horizontal con dirección y velocidad adaptada
     if (moveLeft && !moveRight) {
-      this.setVelocityX(-currentSpeed);
       this.setFlipX(true);
+      // Interpolación suave hacia la velocidad deseada (aceleración fluida)
+      this.setVelocityX(Phaser.Math.Linear(this.body.velocity.x, -targetSpeed, 0.2));
     } else if (moveRight && !moveLeft) {
-      this.setVelocityX(currentSpeed);
       this.setFlipX(false);
+      this.setVelocityX(Phaser.Math.Linear(this.body.velocity.x, targetSpeed, 0.2));
     } else {
-      this.setVelocityX(0);
+      // Desaceleración suave (fricción al frenar)
+      this.setVelocityX(Phaser.Math.Linear(this.body.velocity.x, 0, 0.25));
     }
 
-    // Ejecución de salto
-    if (jumpPressed && onFloor) {
+    // Ejecución de salto usando Coyote Time y Jump Buffer
+    if (this.jumpBufferTimer > 0 && (onFloor || this.coyoteTimer > 0)) {
       this.setVelocityY(this.jumpForce);
+      this.jumpBufferTimer = 0;
+      this.coyoteTimer = 0;
+      
+      // Pequeño squash visual al saltar
+      this.scene.tweens.add({
+        targets: this,
+        scaleX: 0.24,
+        scaleY: 0.32,
+        duration: 80,
+        yoyo: true
+      });
     }
 
-    // Gestión integral de estados de animación
+    // Animaciones de aire y suelo
     if (!onFloor) {
-      // En el aire (salto / ápice / gravedad descendente)
       if (this.body.velocity.y < -50) {
-        if (this.anims.currentAnim?.key !== 'player_jump') {
-          this.play('player_jump', true);
-        }
+        if (this.anims.currentAnim?.key !== 'player_jump') this.play('player_jump', true);
       } else if (this.body.velocity.y >= -50 && this.body.velocity.y <= 50) {
-        if (this.anims.currentAnim?.key !== 'player_jump_peak') {
-          this.play('player_jump_peak', true);
-        }
+        if (this.anims.currentAnim?.key !== 'player_jump_peak') this.play('player_jump_peak', true);
       } else {
-        if (this.anims.currentAnim?.key !== 'player_fall') {
-          this.play('player_fall', true);
-        }
+        if (this.anims.currentAnim?.key !== 'player_fall') this.play('player_fall', true);
       }
     } else {
-      // En el suelo: alternancia dinámica entre correr, caminar o reposo
-      if (Math.abs(this.body.velocity.x) > 10) {
+      if (Math.abs(this.body.velocity.x) > 15) {
         const targetAnim = isRunning ? 'player_run' : 'player_walk';
-        if (this.anims.currentAnim?.key !== targetAnim) {
-          this.play(targetAnim, true);
-        }
+        if (this.anims.currentAnim?.key !== targetAnim) this.play(targetAnim, true);
       } else {
-        if (this.anims.currentAnim?.key !== 'player_idle') {
-          this.play('player_idle', true);
-        }
+        if (this.anims.currentAnim?.key !== 'player_idle') this.play('player_idle', true);
       }
     }
-  }
-
-  performPunch() {
-    this.performAttack();
   }
 
   performAttack() {
     if (this.isAttacking) return;
     this.isAttacking = true;
 
-    // Sonido de ataque si está disponible
     if (this.scene.soundManager && typeof this.scene.soundManager.playLaser === 'function') {
       this.scene.soundManager.playLaser();
     }
@@ -238,14 +206,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const key = this.scene.anims.exists('player_attack') ? 'player_attack' : 'player_punch';
     this.play(key, true);
 
-    // Temporizador de seguridad: previene cualquier bloqueo accidental si se interrumpe la animación
-    if (this.attackSafetyTimer) {
-      this.attackSafetyTimer.remove();
-    }
+    if (this.attackSafetyTimer) this.attackSafetyTimer.remove();
     this.attackSafetyTimer = this.scene.time.delayedCall(450, () => {
-      if (this.isAttacking) {
-        this.finishAttack();
-      }
+      if (this.isAttacking) this.finishAttack();
     });
   }
 
@@ -257,24 +220,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     if (this.isLocked) return;
 
-    // Transición fluida inmediata a movimiento, salto o reposo
     const onFloor = this.body && (this.body.blocked.down || this.body.touching.down);
     const moving = this.body && Math.abs(this.body.velocity.x) > 10;
 
     if (!onFloor) {
-      if (this.scene.anims.exists('player_jump')) {
-        this.play('player_jump', true);
-      }
+      if (this.scene.anims.exists('player_jump')) this.play('player_jump', true);
     } else if (moving) {
       const isRunning = (this.keyShift.isDown || this.virtualInput.running);
       const targetAnim = isRunning ? 'player_run' : 'player_walk';
-      if (this.scene.anims.exists(targetAnim)) {
-        this.play(targetAnim, true);
-      }
+      if (this.scene.anims.exists(targetAnim)) this.play(targetAnim, true);
     } else {
-      if (this.scene.anims.exists('player_idle')) {
-        this.play('player_idle', true);
-      }
+      if (this.scene.anims.exists('player_idle')) this.play('player_idle', true);
     }
   }
 

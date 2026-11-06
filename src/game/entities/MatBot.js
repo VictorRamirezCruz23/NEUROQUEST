@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 /**
  * MatBot.js — Entidad del enemigo robótico "MatBot" en NEUROQUEST.
  * Maneja inteligencia artificial de patrullaje, detección del jugador, animación de ataque
- * y transición al combate interactivo por preguntas curriculares.
+ * y un sistema de diálogos flotantes cómicos.
  */
 export class MatBot extends Phaser.Physics.Arcade.Sprite {
   /**
@@ -19,13 +19,13 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Escala equilibrada y proporcionada al personaje
-    this.setScale(0.65);
+    // Reducción de tamaño y ajuste proporcional de la escala física
+    this.setScale(0.45);
     this.setCollideWorldBounds(true);
 
-    // Caja de colisión física arcade adaptada al sprite calibrado de 240x240
-    this.body.setSize(140, 130);
-    this.body.setOffset(50, 85);
+    // Caja física arcade adaptada al nuevo tamaño reducido del sprite
+    this.body.setSize(95, 90);
+    this.body.setOffset(72, 110);
 
     // Parámetros de comportamiento y patrulla
     this.spawnX = x;
@@ -37,33 +37,34 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
 
     this.direction = 1; // 1 = derecha, -1 = izquierda
     this.isAlive = true;
-    this.state = 'PATROL'; // PATROL, CHASE, ATTACKING, COMBAT, HURT, DYING, DEAD
+    this.state = 'PATROL'; // PATROL, SEARCH, CHASE, ATTACKING, COMBAT, HURT, DYING, DEAD
     this.combatCooldownTimer = 0;
+    
+    // Control de diálogos para no saturar pantalla
+    this.dialogCooldown = 0;
 
     this.play('matbot_walk');
 
-    // Escuchar término de animación de ataque para iniciar el duelo
-    this.on('animationcomplete-matbot_attack', () => {
+    // Escuchas de eventos de animación
+    this.onAnimationCompleteAttack = () => {
       if (this.isAlive && this.state === 'ATTACKING') {
         this.state = 'COMBAT';
         if (typeof this.scene.startCombatDuel === 'function') {
           this.scene.startCombatDuel(this);
         }
       }
-    });
+    };
+    this.on('animationcomplete-matbot_attack', this.onAnimationCompleteAttack);
 
-    // Escuchar término de animación de muerte
-    this.on('animationcomplete-matbot_die', () => {
+    this.onAnimationCompleteDie = () => {
       this.state = 'DEAD';
       this.destroyMatBot();
-    });
+    };
+    this.on('animationcomplete-matbot_die', this.onAnimationCompleteDie);
   }
 
   /**
    * Bucle de actualización por fotograma del MatBot.
-   * @param {number} time
-   * @param {number} delta
-   * @param {import('./Player.js').Player} player
    */
   updateAI(time, delta, player) {
     if (!this.isAlive || this.state === 'DEAD' || this.state === 'COMBAT' || this.state === 'DYING') {
@@ -72,6 +73,10 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
 
     if (this.combatCooldownTimer > 0) {
       this.combatCooldownTimer -= delta;
+    }
+
+    if (this.dialogCooldown > 0) {
+      this.dialogCooldown -= delta;
     }
 
     if (!player || !player.body) {
@@ -94,10 +99,26 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    // 2. Rango de Persecución
+    // 2. Rango de Persecución / Sorpresa
     if (dist <= this.detectionRadius && verticalDist < 90 && this.state !== 'ATTACKING') {
+      // Si pasa de PATROL a CHASE de golpe y está muy cerca, mostrar reacción de sorpresa
+      if (this.state === 'PATROL' && dist < 90 && this.dialogCooldown <= 0) {
+        const sustos = ["¡¿Y tú de dónde saliste?!", "¡Alerta humana!", "¡Uy, qué susto!"];
+        this.mostrarDialogo(Phaser.Math.RND.pick(sustos), '#f59e0b');
+        this.dialogCooldown = 4000;
+      }
       this.chasePlayer(player);
       return;
+    }
+
+    // Si estaba persiguiendo y perdió al jugador, entra en modo búsqueda un momento
+    if (this.state === 'CHASE' && dist > this.detectionRadius + 30) {
+      this.state = 'SEARCH';
+      if (this.dialogCooldown <= 0) {
+        const busqueda = ["¿Dónde se metió?", "¡Sal de ahí, humano!", "Error: objetivo perdido..."];
+        this.mostrarDialogo(Phaser.Math.RND.pick(busqueda), '#38bdf8');
+        this.dialogCooldown = 5000;
+      }
     }
 
     // 3. Patrullaje estándar
@@ -147,8 +168,12 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
     // Disparar animación oficial de ataque
     this.play('matbot_attack', true);
 
+    // Frase cómica al atacar
+    const ataques = ["¡A calcular tu derrota!", "¡Calculadora en mano!", "¡Fallo en tu lógica!"];
+    this.mostrarDialogo(Phaser.Math.RND.pick(ataques), '#ef4444');
+
     // Crear destello de alerta roja sobre el MatBot
-    const alertGfx = this.scene.add.text(this.x, this.y - 50, '⚠️ ¡ATAQUE!', {
+    const alertGfx = this.scene.add.text(this.x, this.y - 70, '⚠️ ¡ATAQUE!', {
       fontFamily: 'monospace',
       fontSize: '11px',
       color: '#ef4444',
@@ -167,13 +192,47 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
+   * Método para mostrar burbujas de diálogo flotantes sobre el bot
+   */
+  mostrarDialogo(texto, colorHex = '#38bdf8') {
+    if (!this.scene || !this.scene.add) return;
+
+    const dialogBubble = this.scene.add.text(this.x, this.y - 50, texto, {
+      fontFamily: 'monospace',
+      fontSize: '10px',
+      color: '#ffffff',
+      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+      padding: { x: 8, y: 4 },
+      align: 'center'
+    }).setOrigin(0.5).setDepth(999);
+
+    // Animación de aparición flotante y desvanecimiento
+    this.scene.tweens.add({
+      targets: dialogBubble,
+      y: dialogBubble.y - 25,
+      alpha: { from: 1, to: 0 },
+      duration: 2200,
+      ease: 'Power1',
+      onUpdate: () => {
+        // Seguir al bot suavemente mientras dura el tween si sigue vivo
+        if (this && this.active) {
+          dialogBubble.x = this.x;
+        }
+      },
+      onComplete: () => dialogBubble.destroy()
+    });
+  }
+
+  /**
    * Ejecuta la animación y efectos de derrota al responder bien el jugador.
-   * @param {Function} [onComplete]
    */
   playDefeat(onComplete) {
     this.isAlive = false;
     this.state = 'DYING';
     this.setVelocity(0, 0);
+
+    // Frase cómica de derrota
+    this.mostrarDialogo("¡Error... 404... cerebro... frito...", '#f59e0b');
 
     // Efecto de chispas y partículas de circuito
     const emitter = this.scene.add.particles(this.x, this.y, 'tile_platform', {
@@ -187,13 +246,11 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
 
     this.scene.time.delayedCall(500, () => emitter.destroy());
 
-    // Reproducir secuencia de daño y desintegración
     this.play('matbot_hurt', true);
     this.scene.time.delayedCall(250, () => {
       this.play('matbot_die', true);
     });
 
-    // Tween de desvanecimiento
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
@@ -206,14 +263,10 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
-  /**
-   * Aplica un enfriamiento tras un ataque fallido del jugador para permitir distanciamiento.
-   * @param {number} durationMs
-   */
   setCooldown(durationMs = 3500) {
     this.combatCooldownTimer = durationMs;
     this.state = 'PATROL';
-    this.direction = -this.direction; // Retroceder un poco
+    this.direction = -this.direction;
     this.setVelocityX(this.direction * this.patrolSpeed);
     this.setFlipX(this.direction < 0);
     this.play('matbot_walk', true);
@@ -222,6 +275,14 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
   destroyMatBot() {
     this.isAlive = false;
     this.state = 'DEAD';
+
+    if (this.onAnimationCompleteAttack) {
+      this.off('animationcomplete-matbot_attack', this.onAnimationCompleteAttack);
+    }
+    if (this.onAnimationCompleteDie) {
+      this.off('animationcomplete-matbot_die', this.onAnimationCompleteDie);
+    }
+
     if (this.body) {
       this.body.enable = false;
     }
