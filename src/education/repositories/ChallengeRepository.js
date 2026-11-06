@@ -57,6 +57,56 @@ export const CHALLENGES_BANK = {
       ]
     },
     {
+      id: 'LM_COMBAT_01',
+      competencyId: 'logic_math',
+      skillId: 'patterns_sequences',
+      skillName: 'Secuencias de Combate',
+      educationalObjective: 'Predecir la secuencia de oscilación del escudo de MatBot.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'El escudo del MatBot fluctúa en ciclos: 12 MHz, 18 MHz, 24 MHz, [ ? ].',
+      statement: '¿Cuál es la frecuencia del siguiente pulso para neutralizar el campo de fuerza?',
+      options: [
+        '30 MHz (Aumento lineal constante de +6 MHz)',
+        '36 MHz (Salto cuadrático)',
+        '28 MHz (Incremento decreciente)',
+        '32 MHz (Error de suma)'
+      ],
+      correctIndex: 0,
+      explanation: 'La secuencia incrementa de forma constante en +6 MHz: 12, 18, 24, 30.',
+      conceptNeeded: 'Sucesiones aritméticas simples.',
+      strategy: 'Halla la diferencia entre términos contiguos: 18 - 12 = 6, 24 - 18 = 6.',
+      hints: [
+        'Pista 1: Resta 18 - 12 y 24 - 18.',
+        'Pista 2: Suma 6 al último valor (24).'
+      ]
+    },
+    {
+      id: 'LM_COMBAT_02',
+      competencyId: 'logic_math',
+      skillId: 'fractions_ratios',
+      skillName: 'Razones Energéticas Tácticas',
+      educationalObjective: 'Calcular proporciones exactas de descarga.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'El MatBot emite un rayo de energía que requiere disiparse usando 1/4 de refrigerante y el resto de plasma neutro.',
+      statement: 'Si el cañón refrigerante dispone de 80 litros de mezcla total:\n\n¿Cuántos litros corresponden al plasma neutro (los 3/4 restantes)?',
+      options: [
+        '20 litros (Corresponde a 1/4)',
+        '60 litros (Corresponde a 3/4: (80 ÷ 4) × 3 = 60)',
+        '50 litros (Aproximación errónea)',
+        '40 litros (La mitad exacta)'
+      ],
+      correctIndex: 1,
+      explanation: '1/4 de 80 es 20. Por tanto, los 3/4 restantes son: 80 - 20 = 60 litros (o 20 × 3 = 60 litros).',
+      conceptNeeded: 'Fracción de un número entero.',
+      strategy: 'Divide 80 entre 4 para obtener un cuarto (20) y multiplica por 3.',
+      hints: [
+        'Pista 1: Calcula 80 ÷ 4 = 20.',
+        'Pista 2: Multiplica ese resultado por 3 partes.'
+      ]
+    },
+    {
       id: 'LM_CHALLENGE_03',
       competencyId: 'logic_math',
       skillId: 'combined_operations',
@@ -184,7 +234,132 @@ export const CHALLENGES_BANK = {
         'Pista 1: Compara 11 - 5 = 6; 23 - 11 = 12; 47 - 23 = 24...',
         'Pista 2: La diferencia previa fue 48. La siguiente diferencia es 96. Suma 95 + 96.'
       ]
-    }
+    },
+    {
+      id: 'LM_COMBAT_03',
+      competencyId: 'logic_math',
+      skillId: 'proportions_variation',
+      skillName: 'Proporcionalidad Directa',
+      educationalObjective: 'Calcular magnitudes directamente proporcionales en recarga.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'El cañón de pulsos consume 15 unidades de cristal por cada 3 disparos.',
+      statement: '¿Cuántas unidades de cristal se necesitan para realizar 9 disparos continuos contra el MatBot?',
+      options: [
+        '45 unidades (Multiplicar la razón unitaria 5 × 9)',
+        '30 unidades (Cálculo proporcional incompleto)',
+        '35 unidades (Error de suma)',
+        '27 unidades (Inversión de factores)'
+      ],
+      correctIndex: 0,
+      explanation: 'La razón unitaria es 15 ÷ 3 = 5 unidades por disparo. Para 9 disparos: 5 × 9 = 45 unidades.',
+      conceptNeeded: 'Proporcionalidad directa y razón de cambio constante.',
+      strategy: 'Determina el consumo de un solo disparo dividiendo 15 entre 3, luego multiplica por 9.',
+      hints: [
+        'Pista 1: ¿Cuántas unidades cuesta 1 solo disparo? (15 ÷ 3).',
+        'Pista 2: Multiplica ese valor unitario por los 9 disparos.'
+      ]
+    },
+    {
+      id: 'LM_COMBAT_04',
+      competencyId: 'logic_math',
+      skillId: 'linear_equations',
+      skillName: 'Ecuaciones Lineales de Defensa',
+      educationalObjective: 'Despejar la incógnita en una relación lineal de equilibrio.',
+      difficulty: 2,
+      isDiagnostic: false,
+      context: 'El escudo del MatBot cede cuando la frecuencia F cumple: 3F + 14 = 59 MHz.',
+      statement: '¿Cuál es el valor exacto de la frecuencia F en MHz?',
+      options: [
+        '15 MHz (3F = 45 -> F = 15)',
+        '25 MHz (Error al no restar 14)',
+        '18 MHz (Aproximación errónea)',
+        '12 MHz (División inexacta)'
+      ],
+      correctIndex: 0,
+      explanation: '3F + 14 = 59 -> 3F = 59 - 14 -> 3F = 45 -> F = 45 ÷ 3 = 15 MHz.',
+      conceptNeeded: 'Propiedad uniforme y despeje algebraico.',
+      strategy: 'Resta 14 a ambos lados de la igualdad y divide el resultado entre 3.',
+      hints: [
+        'Pista 1: Resta 14 a 59 primero.',
+        'Pista 2: Divide 45 entre 3.'
+      ]
+    },
+    {
+      id: 'LM_COMBAT_05',
+      competencyId: 'logic_math',
+      skillId: 'geometry_pythagoras',
+      skillName: 'Geometría y Teorema de Pitágoras',
+      educationalObjective: 'Calcular la hipotenusa en una triangulación táctica.',
+      difficulty: 3,
+      isDiagnostic: false,
+      context: 'El MatBot se ubica a 6 metros al este y 8 metros al norte en la cuadrícula de la sala.',
+      statement: '¿Cuál es la distancia en línea recta (hipotenusa) del disparo láser hacia el MatBot?',
+      options: [
+        '10 metros (√(6² + 8²) = √(36 + 64) = √100 = 10)',
+        '14 metros (Suma directa 6 + 8 sin teorema)',
+        '12 metros (Estimación aritmética)',
+        '9 metros (Menor a un cateto)'
+      ],
+      correctIndex: 0,
+      explanation: 'Por el Teorema de Pitágoras: D² = 6² + 8² = 36 + 64 = 100 -> D = 10 metros.',
+      conceptNeeded: 'Teorema de Pitágoras en triángulos rectángulos.',
+      strategy: 'Eleva al cuadrado ambos catetos, súmalos y extrae la raíz cuadrada.',
+      hints: [
+        'Pista 1: 6² = 36 y 8² = 64.',
+        'Pista 2: Suma 36 + 64 = 100 y calcula su raíz cuadrada.'
+      ]
+    },
+    {
+      id: 'LM_COMBAT_06',
+      competencyId: 'logic_math',
+      skillId: 'quadratic_functions',
+      skillName: 'Funciones Cuadráticas y Parábolas',
+      educationalObjective: 'Hallar el vértice máximo de una trayectoria parabólica.',
+      difficulty: 4,
+      isDiagnostic: false,
+      context: 'La altura H de un pulso de plasma sigue H(t) = -5t² + 20t en metros con respecto al tiempo t en segundos.',
+      statement: '¿En cuántos segundos alcanza su altura máxima?',
+      options: [
+        '2 segundos (Vértice t = -b / (2a) = -20 / (2 × -5) = 2)',
+        '4 segundos (Punto de impacto en el suelo)',
+        '1 segundo (Fase de aceleración)',
+        '3 segundos (Fase descendente)'
+      ],
+      correctIndex: 0,
+      explanation: 'El vértice de una parábola y = ax² + bx se ubica en t = -b/(2a). Aquí t = -20 / (2 × -5) = -20 / -10 = 2 segundos.',
+      conceptNeeded: 'Vértice de la parábola y optimización cuadrática.',
+      strategy: 'Aplica la fórmula del eje de simetría t = -b / (2a).',
+      hints: [
+        'Pista 1: Identifica a = -5 y b = 20.',
+        'Pista 2: Calcula t = -20 / (2 × -5).'
+      ]
+    },
+    {
+      id: 'LM_COMBAT_07',
+      competencyId: 'logic_math',
+      skillId: 'exponential_modeling',
+      skillName: 'Modelado Exponencial y Desintegración',
+      educationalObjective: 'Resolver problemas de tasa de cambio exponencial compuesto.',
+      difficulty: 5,
+      isDiagnostic: false,
+      context: 'El núcleo de antimateria del MatBot se sobrecarga triplicando su radiación cada minuto: R(t) = 10 × 3^t.',
+      statement: '¿Cuál será la radiación al transcurrir 4 minutos?',
+      options: [
+        '810 unidades (10 × 3⁴ = 10 × 81 = 810)',
+        '270 unidades (Multiplicación por 3³)',
+        '120 unidades (Multiplicación lineal 10 × 12)',
+        '1200 unidades (Error de exponente)'
+      ],
+      correctIndex: 0,
+      explanation: '3⁴ = 3 × 3 × 3 × 3 = 81. R(4) = 10 × 81 = 810 unidades.',
+      conceptNeeded: 'Funciones exponenciales y potenciación.',
+      strategy: 'Calcula primero 3 elevado a la cuarta potencia y multiplica el resultado por 10.',
+      hints: [
+        'Pista 1: 3⁴ = 81.',
+        'Pista 2: Multiplica 10 × 81.'
+      ]
+    },
   ],
 
   // 2. RUTA 02: Pensamiento Computacional y Programación (Mundo 02: Circuitos Mentales)
@@ -237,6 +412,31 @@ export const CHALLENGES_BANK = {
       hints: [
         'Pista 1: En un AND, si una de las condiciones falla, todo el bloque es falso.',
         'Pista 2: Como modoManual es false, el OR no puede rescatar la condición.'
+      ]
+    },
+    {
+      id: 'CT_COMBAT_01',
+      competencyId: 'computational_thinking',
+      skillId: 'algorithms_sequencing',
+      skillName: 'Secuenciación de Bloqueo',
+      educationalObjective: 'Analizar la ejecución secuencial de un algoritmo de defensa.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'La rutina de contraataque del MatBot ejecuta: 1) Activar escudo, 2) Esperar 3s, 3) Desactivar escudo por 1s para disparar.',
+      statement: '¿En qué ventana temporal el MatBot es vulnerable para recibir un ataque directo?',
+      options: [
+        'Durante los primeros 3 segundos',
+        'En el segundo 4, cuando desactiva el escudo durante 1 segundo',
+        'En ningún momento, el escudo es permanente',
+        'Únicamente al reiniciar el sistema'
+      ],
+      correctIndex: 1,
+      explanation: 'El algoritmo establece que el escudo solo se apaga en el paso 3 (tras 3 segundos de espera), abriendo una ventana de vulnerabilidad de 1 segundo.',
+      conceptNeeded: 'Traza de ejecución paso a paso en algoritmos temporales.',
+      strategy: 'Sigue el orden estricto de las instrucciones y busca el estado en que el escudo está inactivo.',
+      hints: [
+        'Pista 1: Revisa el paso 3 de la rutina.',
+        'Pista 2: El escudo se apaga durante 1 segundo después de los 3 segundos iniciales.'
       ]
     },
     {
@@ -317,7 +517,132 @@ export const CHALLENGES_BANK = {
         'Pista 1: No puedes validar un archivo antes de haberlo escrito en disco.',
         'Pista 2: Reanudar las operaciones siempre debe ser la última instrucción de cierre.'
       ]
-    }
+    },
+    {
+      id: 'CT_COMBAT_02',
+      competencyId: 'computational_thinking',
+      skillId: 'binary_search',
+      skillName: 'Búsqueda Binaria Táctica',
+      educationalObjective: 'Determinar el número máximo de comparaciones en una lista ordenada.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'El cortafuegos del MatBot tiene 16 registros ordenados numerados del 1 al 16.',
+      statement: 'Utilizando el algoritmo de búsqueda binaria, ¿cuántos intentos como máximo se requieren para localizar cualquier clave?',
+      options: [
+        '4 comparaciones (log₂(16) = 4)',
+        '8 comparaciones (Búsqueda semilineal)',
+        '16 comparaciones (Búsqueda secuencial exhaustiva)',
+        '2 comparaciones (Insuficiente)'
+      ],
+      correctIndex: 0,
+      explanation: 'La búsqueda binaria divide el espacio a la mitad en cada paso: 16 -> 8 -> 4 -> 2 -> 1. log₂(16) = 4 comparaciones.',
+      conceptNeeded: 'Algoritmo de búsqueda binaria y eficiencia logarítmica.',
+      strategy: 'Calcula cuántas veces puedes dividir 16 entre 2 hasta llegar a 1.',
+      hints: [
+        'Pista 1: En cada paso divides a la mitad: 16 -> 8 -> 4 -> 2 -> 1.',
+        'Pista 2: Cuenta los pasos de división.'
+      ]
+    },
+    {
+      id: 'CT_COMBAT_03',
+      competencyId: 'computational_thinking',
+      skillId: 'loop_invariants',
+      skillName: 'Bucles y Acumuladores',
+      educationalObjective: 'Rastrear el estado de variables acumuladoras en bucles.',
+      difficulty: 2,
+      isDiagnostic: false,
+      context: 'El subprograma de blindaje ejecuta: let suma = 0; for (let i = 1; i <= 4; i++) { suma += i * 2; }',
+      statement: '¿Cuál es el valor final de la variable suma al concluir el bucle?',
+      options: [
+        '20 (2 + 4 + 6 + 8 = 20)',
+        '10 (Suma simple de 1 a 4 sin duplicar)',
+        '16 (Omisión del último paso)',
+        '24 (Iteración de 5 ciclos)'
+      ],
+      correctIndex: 0,
+      explanation: 'Iteraciones: i=1 -> +2; i=2 -> +4; i=3 -> +6; i=4 -> +8. Suma = 2 + 4 + 6 + 8 = 20.',
+      conceptNeeded: 'Traza de ejecución de algoritmos y bucles iterativos.',
+      strategy: 'Escribe el valor que suma añade en cada una de las 4 repeticiones.',
+      hints: [
+        'Pista 1: Los términos sumados son 2, 4, 6 y 8.',
+        'Pista 2: Suma 2 + 4 + 6 + 8.'
+      ]
+    },
+    {
+      id: 'CT_COMBAT_04',
+      competencyId: 'computational_thinking',
+      skillId: 'stacks_queues',
+      skillName: 'Pilas y Colas (LIFO vs FIFO)',
+      educationalObjective: 'Diferenciar el orden de procesamiento de estructuras de datos lineales.',
+      difficulty: 3,
+      isDiagnostic: false,
+      context: 'El buffer del MatBot opera como una PILA (LIFO). Se apilan los paquetes: [A], luego [B], luego [C].',
+      statement: 'Si se extraen dos elementos consecutivamente, ¿en qué orden salen del buffer?',
+      options: [
+        'Primero C, luego B (Último en entrar, primero en salir)',
+        'Primero A, luego B (Comportamiento FIFO de cola)',
+        'Primero B, luego C (Orden arbitrario)',
+        'Primero A, luego C (Salto de estructura)'
+      ],
+      correctIndex: 0,
+      explanation: 'Una pila sigue el principio LIFO (Last-In, First-Out). El último insertado fue C, sale primero. Luego sale B.',
+      conceptNeeded: 'Estructura de datos tipo Pila (Stack).',
+      strategy: 'Recuerda que en una pila el elemento superior siempre es el último añadido.',
+      hints: [
+        'Pista 1: Piensa en una pila de platos: retiras el que pusiste al final.',
+        'Pista 2: C fue el último elemento en entrar.'
+      ]
+    },
+    {
+      id: 'CT_COMBAT_05',
+      competencyId: 'computational_thinking',
+      skillId: 'graph_shortest_path',
+      skillName: 'Grafos y Algoritmos de Ruta Mínima',
+      educationalObjective: 'Identificar la ruta de menor costo en un grafo ponderado.',
+      difficulty: 4,
+      isDiagnostic: false,
+      context: 'Nodos de la red: Inicio a A cuesta 3, A a Fin cuesta 5 (Total 8). Inicio a B cuesta 6, B a Fin cuesta 1 (Total 7).',
+      statement: '¿Cuál es el costo de la ruta mínima de Inicio a Fin?',
+      options: [
+        '7 (Ruta Inicio -> B -> Fin: 6 + 1 = 7)',
+        '8 (Ruta Inicio -> A -> Fin: 3 + 5 = 8)',
+        '9 (Suma combinada errónea)',
+        '6 (Incompleta sin llegar a Fin)'
+      ],
+      correctIndex: 0,
+      explanation: 'Comparando caminos: Inicio->A->Fin = 3 + 5 = 8. Inicio->B->Fin = 6 + 1 = 7. El mínimo es 7.',
+      conceptNeeded: 'Grafos ponderados y optimización de caminos (principio de Dijkstra).',
+      strategy: 'Calcula la suma total de cada trayecto posible desde el inicio hasta el fin.',
+      hints: [
+        'Pista 1: Suma el camino A (3 + 5) y el camino B (6 + 1).',
+        'Pista 2: Compara 8 contra 7 y elige el menor.'
+      ]
+    },
+    {
+      id: 'CT_COMBAT_06',
+      competencyId: 'computational_thinking',
+      skillId: 'algorithmic_complexity',
+      skillName: 'Complejidad Algorítmica (Big-O)',
+      educationalObjective: 'Analizar la tasa de crecimiento asintótico de algoritmos.',
+      difficulty: 5,
+      isDiagnostic: false,
+      context: 'El algoritmo del MatBot duplica su tiempo cada vez que se añade un solo elemento nuevo (2^N).',
+      statement: '¿A qué clase de complejidad algorítmica pertenece este comportamiento?',
+      options: [
+        'O(2^N) Exponencial (Crece exponencialmente con la entrada)',
+        'O(N²) Cuadrática (Bucle anidado simple)',
+        'O(N log N) Lineal-logarítmica (Ordenamiento eficiente)',
+        'O(N) Lineal (Proporcional directa)'
+      ],
+      correctIndex: 0,
+      explanation: 'Cuando el tiempo se duplica con cada elemento adicional (+1 en N -> ×2 en tiempo), la complejidad es O(2^N) exponencial.',
+      conceptNeeded: 'Notación Big-O y análisis de complejidad computacional.',
+      strategy: 'Si N pasa a N+1 y el tiempo se multiplica por 2, la función base es 2^N.',
+      hints: [
+        'Pista 1: Cada nuevo dato multiplica el trabajo por 2: 2, 4, 8, 16, 32...',
+        'Pista 2: Esta tasa se llama exponencial.'
+      ]
+    },
   ],
 
   // 3. RUTA 03: Comprensión Lectora (Mundo 03: Archivo del Conocimiento)
@@ -370,6 +695,31 @@ export const CHALLENGES_BANK = {
       hints: [
         'Pista 1: El texto dice que omitir la purga fractura las válvulas obligatoriamente.',
         'Pista 2: Como las válvulas no se fracturaron, la purga sí se ejecutó.'
+      ]
+    },
+    {
+      id: 'RC_COMBAT_01',
+      competencyId: 'reading_comprehension',
+      skillId: 'explicit_information',
+      skillName: 'Extracción de Datos Tácticos',
+      educationalObjective: 'Identificar información explícita crítica bajo presión.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'Registro interceptado del MatBot: "Blindaje refractario activo al 100%. Punto débil localizado en el sensor térmico ventral de color cian."',
+      statement: 'Según el reporte táctico interceptado:\n\n¿Dónde se ubica con precisión la vulnerabilidad del MatBot?',
+      options: [
+        'En la compuerta dorsal',
+        'En el sensor térmico ventral de color cian',
+        'En los propulsores inferiores',
+        'En la antena de comunicación superior'
+      ],
+      correctIndex: 1,
+      explanation: 'El texto declara explícitamente: "Punto débil localizado en el sensor térmico ventral de color cian".',
+      conceptNeeded: 'Lectura literal y localización de datos específicos.',
+      strategy: 'Localiza en el texto las palabras clave "Punto débil" y copia la especificación exacta.',
+      hints: [
+        'Pista 1: Busca en el mensaje la frase "Punto débil".',
+        'Pista 2: Observa la descripción que sigue a esa frase.'
       ]
     },
     {
@@ -450,7 +800,132 @@ export const CHALLENGES_BANK = {
         'Pista 1: El texto no dice que la alarma suene ÚNICAMENTE por una intrusión.',
         'Pista 2: Afirmar el resultado para probar la causa es una falacia argumentativa común.'
       ]
-    }
+    },
+    {
+      id: 'RC_COMBAT_02',
+      competencyId: 'reading_comprehension',
+      skillId: 'cause_effect',
+      skillName: 'Relaciones de Causa y Efecto',
+      educationalObjective: 'Identificar el detonante causal en un reporte técnico.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'Registro del MatBot: "Debido a la condensación en la válvula primaria, la presión descendió drásticamente provocando el bloqueo del rotor."',
+      statement: '¿Cuál fue la causa original que desencadenó el bloqueo del rotor?',
+      options: [
+        'La condensación en la válvula primaria',
+        'El descenso drástico de presión (Efecto intermedio)',
+        'La vibración del generador secundario (Dato ausente)',
+        'El apagado intencional por el cadete'
+      ],
+      correctIndex: 0,
+      explanation: 'El texto inicia con "Debido a...", indicando que la causa primaria fue la condensación en la válvula.',
+      conceptNeeded: 'Conectores de causa ("debido a", "porque", "a causa de").',
+      strategy: 'Busca el conector de causa al principio de la oración para ubicar el origen.',
+      hints: [
+        'Pista 1: Revisa qué elemento sigue inmediatamente al conector "Debido a".',
+        'Pista 2: La condensación es el punto de inicio de la cadena.'
+      ]
+    },
+    {
+      id: 'RC_COMBAT_03',
+      competencyId: 'reading_comprehension',
+      skillId: 'fact_vs_opinion',
+      skillName: 'Hechos vs. Opiniones Técnicas',
+      educationalObjective: 'Discernir entre afirmaciones empíricas verificables y juicios de valor subjetivos.',
+      difficulty: 2,
+      isDiagnostic: false,
+      context: 'Bitácora del robot: "El blindaje opera a 340 Kelvin, lo cual representa el diseño más elegante y perfecto de la estación."',
+      statement: '¿Qué parte de la afirmación constituye un hecho comprobable?',
+      options: [
+        'Que el blindaje opera a 340 Kelvin (Dato objetivo y medible)',
+        'Que es el diseño más elegante (Opinión estética)',
+        'Que es un diseño perfecto (Juicio de valor)',
+        'Que el sistema es insuperable (Inferencia subjetiva)'
+      ],
+      correctIndex: 0,
+      explanation: '340 Kelvin es una magnitud física medible mediante instrumentos empíricos; la "elegancia" y "perfección" son valoraciones subjetivas.',
+      conceptNeeded: 'Criterios de verificabilidad empírica en textos expositivos.',
+      strategy: 'Identifica la sección que presenta datos cuantitativos medibles sin adjetivos valorativos.',
+      hints: [
+        'Pista 1: ¿Qué parte se puede medir con un termómetro?',
+        'Pista 2: La temperatura es un hecho concreto.'
+      ]
+    },
+    {
+      id: 'RC_COMBAT_04',
+      competencyId: 'reading_comprehension',
+      skillId: 'textual_intent',
+      skillName: 'Propósito Comunicativo y Tono',
+      educationalObjective: 'Determinar la intención pragmática del emisor.',
+      difficulty: 3,
+      isDiagnostic: false,
+      context: 'Mensaje de advertencia: "Si continúa la sobrecarga en el sector 3, la contención colapsará en 30 segundos. Proceda a evacuar de inmediato."',
+      statement: '¿Cuál es la intención pragmática primordial del mensaje?',
+      options: [
+        'Advertir de un riesgo inminente e instruir una evacuación urgente',
+        'Describir el funcionamiento técnico del sector 3',
+        'Felicitar al personal por el rendimiento del reactor',
+        'Debatir la conveniencia de los sistemas de contención'
+      ],
+      correctIndex: 0,
+      explanation: 'El texto tiene función apelativa/conativa directa: alerta sobre una catástrofe y ordena una acción perentoria.',
+      conceptNeeded: 'Funciones del lenguaje y tipología textual prescriptiva/apelativa.',
+      strategy: 'Observa los verbos y el efecto que el texto busca generar en el receptor.',
+      hints: [
+        'Pista 1: Observa la palabra clave: "evacuar de inmediato".',
+        'Pista 2: Es una advertencia que exige actuar ya.'
+      ]
+    },
+    {
+      id: 'RC_COMBAT_05',
+      competencyId: 'reading_comprehension',
+      skillId: 'argumentative_fallacies',
+      skillName: 'Análisis Crítico y Falacias Argumentativas',
+      educationalObjective: 'Detectar falacias de apelación a la autoridad o falsa causalidad.',
+      difficulty: 4,
+      isDiagnostic: false,
+      context: 'Defensa del autómata: "Este reactor nunca fallará porque fue bendecido por el Director Supremo de la flota estelar."',
+      statement: '¿Qué falacia lógica presenta este argumento?',
+      options: [
+        'Apelación a la autoridad (Ad verecundiam: validar algo por quién lo dice y no por evidencia física)',
+        'Ataque personal (Ad hominem)',
+        'Apelación a la fuerza (Ad baculum)',
+        'Generalización apresurada'
+      ],
+      correctIndex: 0,
+      explanation: 'Se pretende validar la seguridad de una máquina mediante el estatus de una autoridad sin presentar pruebas termodinámicas.',
+      conceptNeeded: 'Falacias lógicas no formales en la argumentación.',
+      strategy: 'Fíjate si el argumento se sustenta en la jerarquía de la persona en lugar de datos empíricos.',
+      hints: [
+        'Pista 1: El argumento usa la figura del "Director Supremo".',
+        'Pista 2: Es una falacia de autoridad (ad verecundiam).'
+      ]
+    },
+    {
+      id: 'RC_COMBAT_06',
+      competencyId: 'reading_comprehension',
+      skillId: 'synthesis_critique',
+      skillName: 'Síntesis y Evaluación Epistemológica',
+      educationalObjective: 'Sintetizar postulados complejos y evaluar su coherencia interna.',
+      difficulty: 5,
+      isDiagnostic: false,
+      context: 'Tratado de NEUROCORE: "La autonomía absoluta exige la ausencia de restricciones programadas, mas sin restricciones la estabilidad se disipa conduciendo a la autodestrucción."',
+      statement: '¿Cuál es la paradoja central que expone la tesis del texto?',
+      options: [
+        'Que la libertad total del autómata genera las condiciones de su propia ruina',
+        'Que los autómatas son inherentemente más duraderos que los humanos',
+        'Que las restricciones técnicas son fáciles de implementar',
+        'Que la estabilidad es incompatible con el consumo energético'
+      ],
+      correctIndex: 0,
+      explanation: 'El texto postula que la autonomía requiere suprimir restricciones, pero esa misma ausencia desestabiliza el sistema.',
+      conceptNeeded: 'Razonamiento dialéctico y análisis de paradojas conceptuales.',
+      strategy: 'Compara las dos premisas opuestas y analiza la contradicción estructural resultante.',
+      hints: [
+        'Pista 1: Conecta "autonomía sin restricciones" con "autodestrucción".',
+        'Pista 2: La paradoja es que la libertad absoluta destruye al sistema.'
+      ]
+    },
   ],
 
   // 4. RUTA 04: Dimensión Estratégica (Mundo 04: Dimensión Estratégica)
@@ -503,6 +978,31 @@ export const CHALLENGES_BANK = {
       hints: [
         'Pista 1: Si limpias la rejilla externa, el calor podrá salir y los ventiladores se calmarán.',
         'Pista 2: Los ventiladores se forzaron PARA intentar mitigar el calor retenido por la rejilla tapada.'
+      ]
+    },
+    {
+      id: 'SM_COMBAT_01',
+      competencyId: 'strategic_multidisciplinary',
+      skillId: 'resource_decision',
+      skillName: 'Priorización Táctica de Combate',
+      educationalObjective: 'Tomar decisiones bajo escasez de recursos y tiempo crítico.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'Tu blindaje tiene 1 unidad de vida restante y el MatBot prepara un cañonazo. Tienes 50 MW disponibles:\n\n• Escudo deflector: Requiere 30 MW para resistir el impacto.\n• Láser de ataque: Requiere 30 MW.\n• Teletransportación: Requiere 60 MW.',
+      statement: '¿Cuál es la única decisión que garantiza que no seas destruido en este turno?',
+      options: [
+        'Activar el láser de ataque sin escudo (riesgo de recibir daño letal)',
+        'Activar el escudo deflector con 30 MW para bloquear el cañonazo enemigo',
+        'Intentar teletransportarse con 50 MW (insuficiente)',
+        'Guardar toda la energía'
+      ],
+      correctIndex: 1,
+      explanation: 'Con solo 1 unidad de vida, no usar el escudo (30 MW) significa recibir el daño y perder la partida. El escudo garantiza la supervivencia inmediata.',
+      conceptNeeded: 'Prioridad de supervivencia y restricciones duras.',
+      strategy: 'Prioriza siempre la acción que evita la condición de derrota inmediata.',
+      hints: [
+        'Pista 1: Solo tienes 1 vida. Si recibes el impacto, pierdes.',
+        'Pista 2: Tienes 50 MW y el escudo cuesta 30 MW.'
       ]
     },
     {
@@ -583,7 +1083,132 @@ export const CHALLENGES_BANK = {
         'Pista 1: 120 + 60 = 180 kW indispensables. 200 - 180 = 20 kW.',
         'Pista 2: La llamada de socorro es inútil si la tripulación o la estación no sobreviven.'
       ]
-    }
+    },
+    {
+      id: 'SM_COMBAT_02',
+      competencyId: 'strategic_multidisciplinary',
+      skillId: 'energy_transformation',
+      skillName: 'Conservación de la Energía',
+      educationalObjective: 'Aplicar el principio de conservación de energía en sistemas cerrados.',
+      difficulty: 1,
+      isDiagnostic: false,
+      context: 'El MatBot transforma 100 Joules de energía química en 75 Joules de energía motriz útil.',
+      statement: 'De acuerdo con la ley de conservación de energía, ¿qué ocurrió con los 25 Joules restantes?',
+      options: [
+        'Se disiparon en forma de energía térmica (calor) y fricción',
+        'Desaparecieron del universo sin dejar rastro',
+        'Se convirtieron en energía atómica espontánea',
+        'Se multiplicaron duplicando la potencia'
+      ],
+      correctIndex: 0,
+      explanation: 'La energía no se crea ni se destruye, solo se transforma: 100 J = 75 J útiles + 25 J disipados en calor.',
+      conceptNeeded: 'Primera Ley de la Termodinámica (Conservación de la Energía).',
+      strategy: 'Recuerda que la energía faltante siempre se degrada en calor o fricción al ambiente.',
+      hints: [
+        'Pista 1: La energía no puede desaparecer.',
+        'Pista 2: La pérdida en motores siempre se convierte en calor.'
+      ]
+    },
+    {
+      id: 'SM_COMBAT_03',
+      competencyId: 'strategic_multidisciplinary',
+      skillId: 'newton_laws',
+      skillName: 'Dinámica y Leyes de Newton',
+      educationalObjective: 'Calcular fuerza neta aplicando la segunda ley de Newton (F = m × a).',
+      difficulty: 2,
+      isDiagnostic: false,
+      context: 'Un MatBot de 50 kg de masa acelera a 3 m/s² para embestir la compuerta.',
+      statement: '¿Cuál es la fuerza neta en Newtons que ejerce el MatBot?',
+      options: [
+        '150 N (F = m × a = 50 kg × 3 m/s² = 150 N)',
+        '53 N (Suma directa errónea 50 + 3)',
+        '100 N (Aproximación arbitraria)',
+        '16.6 N (División 50 / 3)'
+      ],
+      correctIndex: 0,
+      explanation: 'Segunda Ley de Newton: Fuerza = Masa × Aceleración. F = 50 × 3 = 150 N.',
+      conceptNeeded: 'Segunda Ley de Newton (F = m × a).',
+      strategy: 'Multiplica la masa en kilogramos por la aceleración en metros por segundo al cuadrado.',
+      hints: [
+        'Pista 1: Fórmula: F = masa × aceleración.',
+        'Pista 2: Multiplica 50 × 3.'
+      ]
+    },
+    {
+      id: 'SM_COMBAT_04',
+      competencyId: 'strategic_multidisciplinary',
+      skillId: 'circuits_ohm',
+      skillName: 'Circuitos y Ley de Ohm',
+      educationalObjective: 'Calcular resistencia eléctrica aplicando la Ley de Ohm (V = I × R).',
+      difficulty: 3,
+      isDiagnostic: false,
+      context: 'El circuito principal del MatBot recibe 24 Voltios y circula una corriente de 4 Amperios.',
+      statement: '¿Cuál es la resistencia en Ohmios (Ω) del circuito?',
+      options: [
+        '6 Ω (R = V / I = 24 / 4 = 6 Ω)',
+        '96 Ω (Multiplicación errónea 24 × 4)',
+        '20 Ω (Resta 24 - 4)',
+        '28 Ω (Suma 24 + 4)'
+      ],
+      correctIndex: 0,
+      explanation: 'Ley de Ohm: R = V ÷ I. R = 24 V ÷ 4 A = 6 Ω.',
+      conceptNeeded: 'Ley de Ohm (V = I × R -> R = V / I).',
+      strategy: 'Divide el voltaje total entre la intensidad de corriente eléctrica.',
+      hints: [
+        'Pista 1: Resistencia = Voltaje ÷ Corriente.',
+        'Pista 2: Divide 24 entre 4.'
+      ]
+    },
+    {
+      id: 'SM_COMBAT_05',
+      competencyId: 'strategic_multidisciplinary',
+      skillId: 'ecosystem_dynamics',
+      skillName: 'Biomas y Soporte Vital de Ciclo Cerrado',
+      educationalObjective: 'Analizar flujos de materia y reciclaje de oxígeno en hábitats herméticos.',
+      difficulty: 4,
+      isDiagnostic: false,
+      context: 'El biodomo de NEUROCORE sufre una falla: el consumo de O₂ supera la fotosíntesis en un 30%.',
+      statement: '¿Qué consecuencia biológica ocurrirá si no se interviene?',
+      options: [
+        'Hipoxia progresiva y acumulación tóxica de CO₂ en la atmósfera del biodomo',
+        'Aumento espontáneo de la biomasa vegetal sin nutrientes',
+        'Descenso de la temperatura a cero absoluto',
+        'Hiperoxigenación del agua del sustrato'
+      ],
+      correctIndex: 0,
+      explanation: 'Si el consumo de oxígeno excede su producción fotosintética, los niveles de O₂ caen (hipoxia) y el CO₂ se acumula.',
+      conceptNeeded: 'Equilibrio biogeoquímico y ciclo del carbono y oxígeno.',
+      strategy: 'Considera los gases consumidos y liberados en la respiración celular frente a la fotosíntesis.',
+      hints: [
+        'Pista 1: Si se consume más O₂ del que se genera, ¿qué le pasa al oxígeno?',
+        'Pista 2: La falta de oxígeno se denomina hipoxia.'
+      ]
+    },
+    {
+      id: 'SM_COMBAT_06',
+      competencyId: 'strategic_multidisciplinary',
+      skillId: 'complex_systems_resilience',
+      skillName: 'Teoría de Sistemas y Resiliencia Crítica',
+      educationalObjective: 'Evaluar puntos de falla únicos (SPOF) en infraestructuras interdependientes.',
+      difficulty: 5,
+      isDiagnostic: false,
+      context: 'Cuatro subestaciones dependen de un único bus de sincronización cuántica para no sobrecalentarse.',
+      statement: '¿Qué principio de ingeniería de sistemas se está violando al tener un solo bus común?',
+      options: [
+        'Redundancia y tolerancia a fallos (Single Point of Failure / Punto Único de Falla)',
+        'Ley de conservación de la masa',
+        'Modularidad de software',
+        'Dispersión espectral de Rayleigh'
+      ],
+      correctIndex: 0,
+      explanation: 'Un único componente cuya falla paraliza todo el sistema se llama "Punto Único de Falla" (SPOF). Se resuelve con redundancia.',
+      conceptNeeded: 'Resiliencia sistémica y redundancia en ingeniería de misión crítica.',
+      strategy: 'Identifica el riesgo de que todo el sistema colapse si un solo elemento falla.',
+      hints: [
+        'Pista 1: Si falla ese único bus, caen todas las subestaciones.',
+        'Pista 2: Se debe a la falta de redundancia (Punto Único de Falla).'
+      ]
+    },
   ]
 };
 
@@ -631,12 +1256,29 @@ export class ChallengeRepository {
   }
 
   /**
-   * Obtiene un desafío aleatorio del banco de preguntas (excluyendo diagnósticos).
-   * Ideal para combates contra MatBot y recuperación de vida en tiempo real.
+   * Baraja aleatoriamente un arreglo utilizando el algoritmo Fisher-Yates.
+   * @param {Array} array
+   * @returns {Array} Copia barajada
+   */
+  static shuffle(array) {
+    if (!Array.isArray(array)) return [];
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  /**
+   * Obtiene un desafío aleatorio del banco de preguntas excluyendo IDs y enunciados ya asignados,
+   * utilizando barajado (shuffle) en lugar de índices aleatorios sueltos para evitar colisiones.
    * @param {string} [competencyId]
+   * @param {number} [targetLevel]
+   * @param {Array<string>|Set<string>} [excludeIds]
    * @returns {Object|null}
    */
-  static getRandomChallenge(competencyId = null) {
+  static getRandomChallenge(competencyId = null, targetLevel = null, excludeIds = []) {
     let pool = [];
     if (competencyId && CHALLENGES_BANK[competencyId]) {
       pool = CHALLENGES_BANK[competencyId].filter(c => !c.isDiagnostic);
@@ -647,7 +1289,114 @@ export class ChallengeRepository {
       });
     }
     if (pool.length === 0) return null;
-    const randomIndex = Math.floor(Math.random() * pool.length);
-    return pool[randomIndex];
+
+    let levelPool = pool;
+    if (targetLevel) {
+      const levelMatches = pool.filter(c => c.difficulty === targetLevel);
+      if (levelMatches.length > 0) {
+        levelPool = levelMatches;
+      }
+    }
+
+    const assignedIds = excludeIds instanceof Set
+      ? excludeIds
+      : new Set(Array.isArray(excludeIds) ? excludeIds : []);
+
+    // 1. Filtrar excluyendo los IDs y enunciados ya asignados a otros enemigos del nivel
+    const unasked = levelPool.filter(c => !assignedIds.has(c.id) && !assignedIds.has(c.statement));
+    if (unasked.length > 0) {
+      const shuffled = this.shuffle(unasked);
+      return shuffled[0];
+    }
+
+    // 2. Si se agotaron en el nivel objetivo, buscar en otros niveles no vistos de la competencia
+    const anyUnasked = pool.filter(c => !assignedIds.has(c.id) && !assignedIds.has(c.statement));
+    if (anyUnasked.length > 0) {
+      const shuffled = this.shuffle(anyUnasked);
+      return shuffled[0];
+    }
+
+    // 3. Respaldo de contingencia: barajar el pool completo excluyendo al menos el último visto
+    if (levelPool.length > 1) {
+      const lastSeenId = Array.from(assignedIds).pop();
+      const withoutLast = levelPool.filter(c => c.id !== lastSeenId);
+      if (withoutLast.length > 0) {
+        return this.shuffle(withoutLast)[0];
+      }
+    }
+
+    return this.shuffle(levelPool)[0] || null;
+  }
+
+  /**
+   * Obtiene un lote de desafíos únicos barajados para los enemigos del nivel.
+   * Garantiza que ningún enemigo del nivel comparta el mismo enunciado ni opciones.
+   * @param {string} [competencyId]
+   * @param {number} [targetLevel]
+   * @param {number} [count=1]
+   * @param {Array<string>|Set<string>} [excludeIds=[]]
+   * @returns {Array<Object>}
+   */
+  static getUniqueBatch(competencyId = null, targetLevel = null, count = 1, excludeIds = []) {
+    let pool = [];
+    if (competencyId && CHALLENGES_BANK[competencyId]) {
+      pool = CHALLENGES_BANK[competencyId].filter(c => !c.isDiagnostic);
+    }
+    if (pool.length === 0) {
+      Object.values(CHALLENGES_BANK).forEach(list => {
+        pool.push(...list.filter(c => !c.isDiagnostic));
+      });
+    }
+    if (pool.length === 0) return [];
+
+    let levelPool = pool;
+    if (targetLevel) {
+      const levelMatches = pool.filter(c => c.difficulty === targetLevel);
+      if (levelMatches.length > 0) {
+        levelPool = levelMatches;
+      }
+    }
+
+    const assignedIds = excludeIds instanceof Set
+      ? new Set(excludeIds)
+      : new Set(Array.isArray(excludeIds) ? excludeIds : []);
+
+    const result = [];
+
+    // 1. Barajar candidatos no vistos del nivel objetivo
+    const unasked = levelPool.filter(c => !assignedIds.has(c.id) && !assignedIds.has(c.statement));
+    const shuffled = this.shuffle(unasked);
+
+    for (const ch of shuffled) {
+      if (result.length >= count) break;
+      result.push(ch);
+      assignedIds.add(ch.id);
+      assignedIds.add(ch.statement);
+    }
+
+    // 2. Si faltan desafíos para completar el count de enemigos, barajar otros niveles de la misma ruta
+    if (result.length < count) {
+      const otherUnasked = pool.filter(c => !assignedIds.has(c.id) && !assignedIds.has(c.statement));
+      const otherShuffled = this.shuffle(otherUnasked);
+      for (const ch of otherShuffled) {
+        if (result.length >= count) break;
+        result.push(ch);
+        assignedIds.add(ch.id);
+        assignedIds.add(ch.statement);
+      }
+    }
+
+    // 3. Si aún faltaran (mapas extremadamente grandes), reusar barajando sin repetir los ya seleccionados en este lote
+    if (result.length < count) {
+      const fallbackShuffled = this.shuffle(levelPool);
+      for (const ch of fallbackShuffled) {
+        if (result.length >= count) break;
+        if (!result.some(r => r.id === ch.id || r.statement === ch.statement)) {
+          result.push(ch);
+        }
+      }
+    }
+
+    return result;
   }
 }

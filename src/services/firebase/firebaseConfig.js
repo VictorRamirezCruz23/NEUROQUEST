@@ -11,13 +11,13 @@ import { getFunctions } from 'firebase/functions';
  * y desconexiones en canales terminados (net::ERR_BLOCKED_BY_CLIENT / TYPE=terminate).
  */
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDHLgMt2WloB3LC3EAgJffwKh5NW8p7qXo",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "neuroquest-game.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "neuroquest-game",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "neuroquest-game.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "782159607734",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:782159607734:web:ba2b8f05fbd27ab377b317",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-NS630G3P7P"
+  apiKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_API_KEY) || "AIzaSyDHLgMt2WloB3LC3EAgJffwKh5NW8p7qXo",
+  authDomain: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN) || "neuroquest-game.firebaseapp.com",
+  projectId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_PROJECT_ID) || "neuroquest-game",
+  storageBucket: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET) || "neuroquest-game.firebasestorage.app",
+  messagingSenderId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID) || "782159607734",
+  appId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_APP_ID) || "1:782159607734:web:ba2b8f05fbd27ab377b317",
+  measurementId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_MEASUREMENT_ID) || "G-NS630G3P7P"
 };
 
 // 1. Inicializar Firebase App
