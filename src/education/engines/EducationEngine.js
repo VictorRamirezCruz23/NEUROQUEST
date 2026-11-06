@@ -207,7 +207,8 @@ export class EducationEngine {
       );
       // Si la transferencia fue exitosa, programar retención temporal posterior (cooling de 60s)
       if (isCorrect) {
-        RetentionAssessment.scheduleRetention(compId, challenge.skillId, challenge.id, 60 * 1000);
+        const skillKey = challenge.skillId || challenge.skill || challenge.skillName || 'general';
+        RetentionAssessment.scheduleRetention(compId, skillKey, challenge.id, 60 * 1000);
       }
     }
 

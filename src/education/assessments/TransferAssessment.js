@@ -63,7 +63,7 @@ export class TransferAssessment {
     // Registrar en historial de transferencia
     metrics.history.push({
       challengeId: challenge.id,
-      skill: challenge.skill,
+      skill: challenge.skill || challenge.skillId || challenge.skillName || 'general',
       transferType,
       isCorrect,
       isAutonomous,
