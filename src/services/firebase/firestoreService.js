@@ -45,6 +45,29 @@ class FirestoreService {
   }
 
   /**
+   * Sanitiza recursivamente objetos y arreglos para Cloud Firestore,
+   * garantizando que ningún campo contenga valores 'undefined' que provoquen rechazos.
+   * @param {*} val
+   * @returns {*}
+   */
+  sanitizeForFirestore(val) {
+    if (val === undefined) return null;
+    if (val === null || typeof val !== 'object') return val;
+    if (val instanceof Date) return val;
+    if (typeof val._methodName === 'string' || val.constructor?.name === 'FieldValue') {
+      return val;
+    }
+    if (Array.isArray(val)) {
+      return val.map(item => this.sanitizeForFirestore(item ?? null));
+    }
+    const clean = {};
+    for (const [k, v] of Object.entries(val)) {
+      clean[k] = v !== undefined ? this.sanitizeForFirestore(v) : null;
+    }
+    return clean;
+  }
+
+  /**
    * Sincroniza o crea el documento raíz del usuario en Firestore.
    * @param {Object} user
    * @returns {Promise<boolean>}
@@ -68,7 +91,7 @@ class FirestoreService {
         return true;
       }
       const userRef = doc(db, 'users', uid);
-      await setDoc(userRef, profileData, { merge: true });
+      await setDoc(userRef, this.sanitizeForFirestore(profileData), { merge: true });
       return true;
     } catch (err) {
       this.handleNetworkError('No se pudo sincronizar perfil remoto', err);
@@ -88,7 +111,7 @@ class FirestoreService {
       competencyId,
       currentLevel: progress.currentLevel || 1,
       diagnosticCompleted: !!progress.diagnosticCompleted,
-      diagnosticScore: progress.diagnosticScore || null,
+      diagnosticScore: progress.diagnosticScore !== undefined ? progress.diagnosticScore : null,
       consecutiveCorrect: progress.consecutiveCorrect || 0,
       metrics: progress.metrics || null,
       transferMetrics: progress.transferMetrics || null,
@@ -108,7 +131,8 @@ class FirestoreService {
 
     try {
       const progressRef = doc(db, 'users', uid, 'progress', competencyId);
-      await setDoc(progressRef, { ...payload, serverTimestamp: serverTimestamp() }, { merge: true });
+      const cleanData = this.sanitizeForFirestore({ ...payload, serverTimestamp: serverTimestamp() });
+      await setDoc(progressRef, cleanData, { merge: true });
       return true;
     } catch (err) {
       this.handleNetworkError(`Error al guardar progreso remoto de ${competencyId}`, err);
@@ -173,7 +197,8 @@ class FirestoreService {
 
     try {
       const attemptsCol = collection(db, 'users', uid, 'attempts');
-      await addDoc(attemptsCol, { ...logPayload, serverTimestamp: serverTimestamp() });
+      const cleanLog = this.sanitizeForFirestore({ ...logPayload, serverTimestamp: serverTimestamp() });
+      await addDoc(attemptsCol, cleanLog);
       return true;
     } catch (err) {
       this.handleNetworkError('Error registrando intento remoto', err);

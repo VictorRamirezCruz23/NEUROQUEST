@@ -44,17 +44,18 @@ export class RetentionAssessment {
       progress.retentionSchedule = [];
     }
 
+    const safeSkill = skill || 'general';
     // Evitar programar duplicados de la misma habilidad en la misma tanda
-    const existing = progress.retentionSchedule.find(item => item.skill === skill && !item.evaluated);
+    const existing = progress.retentionSchedule.find(item => item.skill === safeSkill && !item.evaluated);
     if (!existing) {
       progress.retentionSchedule.push({
-        skill,
-        originalChallengeId: challengeId,
+        skill: safeSkill,
+        originalChallengeId: challengeId || 'unknown',
         learnedAt: Date.now(),
         coolingPeriodMs,
         evaluated: false
       });
-      console.log(`[RetentionAssessment] Evaluación de retención programada para: ${skill} en ${coolingPeriodMs / 1000}s`);
+      console.log(`[RetentionAssessment] Evaluación de retención programada para: ${safeSkill} en ${coolingPeriodMs / 1000}s`);
     }
   }
 
@@ -105,8 +106,9 @@ export class RetentionAssessment {
     }
 
     // Marcar el ítem programado como evaluado
+    const challengeSkill = challenge.skill || challenge.skillId || challenge.skillName || 'general';
     if (progress.retentionSchedule) {
-      const scheduleItem = progress.retentionSchedule.find(item => item.skill === challenge.skill && !item.evaluated);
+      const scheduleItem = progress.retentionSchedule.find(item => item.skill === challengeSkill && !item.evaluated);
       if (scheduleItem) {
         scheduleItem.evaluated = true;
         scheduleItem.retained = isCorrect;
@@ -116,7 +118,7 @@ export class RetentionAssessment {
 
     metrics.history.push({
       challengeId: challenge.id,
-      skill: challenge.skill,
+      skill: challengeSkill,
       isCorrect,
       isAutonomous,
       timestamp: new Date().toISOString()

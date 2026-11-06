@@ -12,6 +12,44 @@ class TutorService {
   constructor() {
     this.cache = new Map();
     this.isRequestPending = false;
+    this.isRemoteCombatAvailable = null;
+    this.lastFailureTime = 0;
+    this.hasLoggedFallback = false;
+  }
+
+  /**
+   * Determina si se debe intentar la consulta remota a Cloud Functions para combate.
+   * Evita errores repetitivos de CORS en consola en entorno de desarrollo local (localhost)
+   * cuando las Cloud Functions aún no han sido desplegadas en el proyecto de Firebase.
+   * @returns {boolean}
+   */
+  canAttemptRemoteCombat() {
+    if (this.isRemoteCombatAvailable === false) {
+      if (Date.now() - this.lastFailureTime < 60000) {
+        return false;
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return false;
+    }
+
+    if (!functions) {
+      return false;
+    }
+
+    // En desarrollo local (localhost), si no se habilitó explícitamente VITE_ENABLE_REMOTE_AI,
+    // operar directamente con el banco curricular local para evitar bloqueos de CORS por funciones no desplegadas
+    if (typeof window !== 'undefined') {
+      const hostname = window.location?.hostname || '';
+      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.local');
+      const isExplicitlyEnabled = typeof import.meta !== 'undefined' && import.meta.env?.VITE_ENABLE_REMOTE_AI === 'true';
+      if (isLocalhost && !isExplicitlyEnabled) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -136,13 +174,7 @@ class TutorService {
         || educationEngine.getRandomChallenge();
     };
 
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      console.warn('[TutorService] Entorno offline: usando desafío de respaldo para combate.');
-      return getFallback();
-    }
-
-    if (!functions) {
-      console.warn('[TutorService] Firebase Functions no disponible: usando desafío de respaldo.');
+    if (!this.canAttemptRemoteCombat()) {
       return getFallback();
     }
 
@@ -168,14 +200,19 @@ class TutorService {
       if (data && data.success && data.challenge) {
         const validated = this.validateCombatChallenge(data.challenge, compId, targetLevel);
         if (validated) {
+          this.isRemoteCombatAvailable = true;
           return validated;
         }
       }
 
-      console.warn('[TutorService] Respuesta de combate inválida de IA, activando respaldo.');
       return getFallback();
     } catch (err) {
-      console.warn('[TutorService] Fallo al generar combate con IA, usando respaldo:', err.message);
+      this.isRemoteCombatAvailable = false;
+      this.lastFailureTime = Date.now();
+      if (!this.hasLoggedFallback) {
+        this.hasLoggedFallback = true;
+        console.info('[TutorService] Modo de combate con IA no disponible en servidor. Operando con banco pedagógico local resiliente.');
+      }
       return getFallback();
     }
   }
@@ -201,13 +238,7 @@ class TutorService {
       return ChallengeRepository.getUniqueBatch(compId, targetLevel, safeCount, excludeIds);
     };
 
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      console.warn('[TutorService] Entorno offline: precargando lote desde banco local.');
-      return getLocalBatch();
-    }
-
-    if (!functions) {
-      console.warn('[TutorService] Firebase Functions no disponible: precargando desde banco local.');
+    if (!this.canAttemptRemoteCombat()) {
       return getLocalBatch();
     }
 
@@ -238,6 +269,7 @@ class TutorService {
           .filter(Boolean);
 
         if (validatedList.length > 0) {
+          this.isRemoteCombatAvailable = true;
           const uniqueBatch = [];
           const seen = new Set([
             ...(playerParams?.previousStatements || []),
@@ -263,10 +295,14 @@ class TutorService {
         }
       }
 
-      console.warn('[TutorService] Respuesta de lote de IA vacía o inválida, usando banco local.');
       return getLocalBatch();
     } catch (err) {
-      console.warn('[TutorService] Error en pre-carga de lote con IA, usando banco local:', err.message);
+      this.isRemoteCombatAvailable = false;
+      this.lastFailureTime = Date.now();
+      if (!this.hasLoggedFallback) {
+        this.hasLoggedFallback = true;
+        console.info('[TutorService] Modo de combate con IA no disponible en servidor. Operando con banco pedagógico local resiliente.');
+      }
       return getLocalBatch();
     }
   }

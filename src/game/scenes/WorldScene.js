@@ -15,6 +15,7 @@ import { DIFFICULTY_LABELS, adaptiveEngine } from '../../education/adaptive/Adap
 import { authModalController } from '../../ui/components/AuthModalController.js';
 import { authService } from '../../services/firebase/authService.js';
 import { tutorService } from '../../services/gemini/tutorService.js';
+import { ChallengeRepository } from '../../education/repositories/ChallengeRepository.js';
 
 /**
  * WorldScene.js — Escena del Mundo Interactivo y Plataformas 2D de NEUROQUEST.

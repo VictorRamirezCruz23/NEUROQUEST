@@ -263,3 +263,17 @@ test('15. BattleArenaModal cuenta con manejo seguro de resolución, avance rápi
   assert.match(arenaCode, /finishResolution/, 'Debe permitir avance rápido unificado mediante finishResolution');
   assert.match(arenaCode, /quickAdvanceHandler|pointerdown/, 'Debe admitir clic para avanzar de inmediato sin demoras');
 });
+
+test('16. WorldScene importa ChallengeRepository para evitar ReferenceError', () => {
+  const sceneCode = fs.readFileSync(path.resolve('src/game/scenes/WorldScene.js'), 'utf8');
+  assert.match(sceneCode, /import\s*\{\s*ChallengeRepository\s*\}\s*from\s*['"]\.\.\/\.\.\/education\/repositories\/ChallengeRepository\.js['"]/,
+    'WorldScene debe importar ChallengeRepository');
+});
+
+test('17. firestoreService y RetentionAssessment previenen valores undefined en Firestore', () => {
+  const fCode = fs.readFileSync(path.resolve('src/services/firebase/firestoreService.js'), 'utf8');
+  assert.match(fCode, /sanitizeForFirestore/, 'firestoreService debe implementar sanitización recursiva');
+
+  const rCode = fs.readFileSync(path.resolve('src/education/assessments/RetentionAssessment.js'), 'utf8');
+  assert.match(rCode, /safeSkill\s*=\s*skill\s*\|\|\s*'general'/, 'RetentionAssessment debe garantizar un string seguro para skill');
+});
