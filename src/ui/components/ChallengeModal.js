@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { sessionState } from '../../core/sessionState.js';
-import { DIFFICULTY_LABELS } from '../../education/adaptive/AdaptiveEngine.js';
+import { DIFFICULTY_LABELS, adaptiveEngine } from '../../education/adaptive/AdaptiveEngine.js';
 import { tutorService } from '../../services/gemini/tutorService.js';
 
 /**
@@ -53,34 +53,184 @@ export class ChallengeModal {
     });
   }
 
-  open(options = {}) {
+  async open(options = {}) {
     this.currentOptions = options;
-    if (options.challenge) {
-      this.currentChallenge = options.challenge;
-    } else if (options.mode === 'combat' || options.mode === 'recovery') {
-      this.currentChallenge = educationEngine.getRandomChallenge();
-    } else {
-      this.currentChallenge = educationEngine.getNextChallenge(null, options);
-    }
-
-    if (!this.currentChallenge) {
-      console.warn('[ChallengeModal] No hay desafíos en el banco para la competencia activa.');
-      return;
-    }
-
     this.isOpen = true;
-    this.currentView = 'challenge';
     if (this.player) this.player.freeze();
     if (this.scene && this.scene.virtualControls) {
       this.scene.virtualControls.setVisible(false);
     }
 
+    if (options.challenge) {
+      this.currentChallenge = options.challenge;
+    } else if (options.mode === 'combat') {
+      // Mostrar breve estado de carga táctica
+      this.renderLoadingCombatView();
+
+      const compId = sessionState.getActiveCompetency();
+      const meta = sessionState.getActiveCompetencyMeta();
+      const currentLevel = educationEngine.getCurrentLevel(compId);
+      const metrics = educationEngine.getLearningMetrics(compId);
+
+      const recentHistory = adaptiveEngine.getRecentHistory(compId);
+      const times = recentHistory.filter(h => h.timeSeconds && h.timeSeconds > 0);
+      const avgResponseTime = times.length > 0
+        ? Math.round(times.reduce((acc, h) => acc + h.timeSeconds, 0) / times.length)
+        : 12;
+
+      const playerParams = {
+        competencyId: compId,
+        competencyName: meta?.name || compId,
+        currentLevel,
+        accuracy: metrics?.performance?.accuracy || 0,
+        avgResponseTime,
+        recentSkills: meta?.skills || [],
+        previousStatements: educationEngine.challengeHistory || []
+      };
+
+      try {
+        this.currentChallenge = await tutorService.requestDynamicCombatChallenge(playerParams);
+      } catch (err) {
+        console.warn('[ChallengeModal] Error solicitando combate táctico a E.V.A., usando respaldo:', err);
+        this.currentChallenge = educationEngine.getRandomChallenge(compId, currentLevel);
+      }
+    } else if (options.mode === 'recovery') {
+      this.currentChallenge = educationEngine.getRandomChallenge();
+    } else {
+      this.currentChallenge = educationEngine.getNextChallenge(null, options);
+    }
+
+    // Si el usuario cerró el modal durante la carga asíncrona
+    if (!this.isOpen) return;
+
+    if (!this.currentChallenge) {
+      console.warn('[ChallengeModal] No hay desafíos en el banco para la competencia activa.');
+      this.close();
+      return;
+    }
+
+    this.currentView = 'challenge';
     this.renderChallengeView();
   }
 
+  renderLoadingCombatView() {
+    this.clearElements();
+    this.currentView = 'loading';
+
+    const { width, height } = this.scene.scale;
+    const baseDepth = 2000;
+    const modalW = 820;
+    const modalH = 480;
+    const modalX = (width - modalW) / 2;
+    const modalY = (height - modalH) / 2;
+
+    // Telón de fondo
+    this.track(
+      this.scene.add.rectangle(0, 0, width, height, 0x05070f, 0.85)
+        .setOrigin(0)
+        .setDepth(baseDepth)
+        .setInteractive()
+    );
+
+    // Caja modal con borde de combate
+    const modalBg = this.track(this.scene.add.graphics().setDepth(baseDepth + 1));
+    modalBg.fillStyle(0x0f172a, 0.98);
+    modalBg.fillRoundedRect(modalX, modalY, modalW, modalH, 10);
+    modalBg.lineStyle(2, 0xef4444, 0.85);
+    modalBg.strokeRoundedRect(modalX, modalY, modalW, modalH, 10);
+
+    // Cabecera táctica
+    this.track(
+      this.scene.add.text(
+        modalX + modalW / 2,
+        modalY + 140,
+        '⚔️ ALERTA DE COMBATE TÁCTICO • NEUROCORE',
+        {
+          fontFamily: 'monospace',
+          fontSize: '18px',
+          color: '#f87171',
+          fontStyle: 'bold'
+        }
+      ).setOrigin(0.5).setDepth(baseDepth + 2)
+    );
+
+    this.track(
+      this.scene.add.text(
+        modalX + modalW / 2,
+        modalY + 190,
+        'E.V.A. calibrando desafío táctico según tu perfil...',
+        {
+          fontFamily: 'Segoe UI, -apple-system, sans-serif',
+          fontSize: '15px',
+          color: '#cbd5e1'
+        }
+      ).setOrigin(0.5).setDepth(baseDepth + 2)
+    );
+
+    // Barra de pulso defensiva
+    const pulseBar = this.track(
+      this.scene.add.rectangle(modalX + modalW / 2, modalY + 250, 260, 6, 0xef4444)
+        .setOrigin(0.5)
+        .setDepth(baseDepth + 2)
+    );
+
+    if (this.scene && this.scene.tweens) {
+      if (this.loadingTween) {
+        try {
+          this.loadingTween.stop();
+          this.loadingTween.remove();
+        } catch (e) {}
+      }
+      this.loadingTween = this.scene.tweens.add({
+        targets: pulseBar,
+        scaleX: 0.15,
+        alpha: 0.35,
+        duration: 650,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+
+    this.track(
+      this.scene.add.text(
+        modalX + modalW / 2,
+        modalY + modalH - 40,
+        '[ Preparando subsistemas tácticos de defensa... ]',
+        {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: '#64748b'
+        }
+      ).setOrigin(0.5).setDepth(baseDepth + 2)
+    );
+  }
+
   clearElements() {
+    if (this.loadingTween) {
+      try {
+        this.loadingTween.stop();
+        this.loadingTween.remove();
+      } catch (e) {}
+      this.loadingTween = null;
+    }
+
+    if (this.scene && this.scene.tweens) {
+      this.elements.forEach(el => {
+        if (el) {
+          try {
+            this.scene.tweens.killTweensOf(el);
+          } catch (e) {}
+        }
+      });
+    }
+
     this.elements.forEach(el => {
-      if (el && el.destroy) el.destroy();
+      if (el && el.destroy) {
+        try {
+          el.destroy();
+        } catch (e) {}
+      }
     });
     this.elements = [];
   }
@@ -94,6 +244,7 @@ export class ChallengeModal {
   renderChallengeView() {
     this.clearElements();
     this.currentView = 'challenge';
+    this.challengeStartTime = Date.now();
 
     const { width, height } = this.scene.scale;
     const meta = sessionState.getActiveCompetencyMeta();
@@ -366,23 +517,31 @@ export class ChallengeModal {
 
   submitAnswer(optionIndex) {
     if (!this.isOpen || this.currentView !== 'challenge') return;
-    const result = educationEngine.evaluateAnswer(this.currentChallenge, optionIndex);
-    this.lastResult = result;
+    try {
+      const timeSeconds = this.challengeStartTime
+        ? (Date.now() - this.challengeStartTime) / 1000
+        : 0;
+      const result = educationEngine.evaluateAnswer(this.currentChallenge, optionIndex, timeSeconds);
+      this.lastResult = result;
 
-    if (this.currentOptions?.mode === 'combat') {
-      if (typeof this.currentOptions.onCombatResult === 'function') {
-        this.currentOptions.onCombatResult(result.isCorrect, this.currentChallenge, this.currentOptions.matbot);
+      if (this.currentOptions?.mode === 'combat') {
+        if (typeof this.currentOptions.onCombatResult === 'function') {
+          this.currentOptions.onCombatResult(result.isCorrect, this.currentChallenge, this.currentOptions.matbot);
+        }
+      } else if (this.currentOptions?.mode === 'recovery') {
+        if (typeof this.currentOptions.onRecoveryResult === 'function') {
+          this.currentOptions.onRecoveryResult(result.isCorrect, this.currentChallenge, this.currentOptions.healthItem);
+        }
       }
-    } else if (this.currentOptions?.mode === 'recovery') {
-      if (typeof this.currentOptions.onRecoveryResult === 'function') {
-        this.currentOptions.onRecoveryResult(result.isCorrect, this.currentChallenge, this.currentOptions.healthItem);
-      }
-    }
 
-    if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
-      this.scene.updateHUDLevel();
+      if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
+        this.scene.updateHUDLevel();
+      }
+      this.renderFeedbackView(result);
+    } catch (err) {
+      console.error('[ChallengeModal] Error al procesar respuesta:', err);
+      this.close();
     }
-    this.renderFeedbackView(result);
   }
 
   renderFeedbackView(result) {
@@ -391,6 +550,12 @@ export class ChallengeModal {
 
     const { width, height } = this.scene.scale;
     const baseDepth = 2000;
+    const compId = this.currentChallenge?.competencyId || sessionState.getActiveCompetency();
+    const meta = sessionState.getActiveCompetencyMeta() || {
+      name: compId || 'Pensamiento Lógico',
+      code: 'LOGIC',
+      primaryColor: 0x38bdf8
+    };
 
     // Telón
     this.track(
@@ -629,23 +794,27 @@ export class ChallengeModal {
 
     // Si el estudiante cometió un fallo, consultar a E.V.A. (Gemini Backend) para enriquecer la explicación
     if (!result.isCorrect && this.currentChallenge) {
-      tutorService.requestErrorExplanation({
-        challengeId: this.currentChallenge.id,
-        competencyName: meta.name,
-        skillName: this.currentChallenge.skillName,
-        context: this.currentChallenge.context,
-        statement: this.currentChallenge.statement,
-        selectedOption: result.selectedOption,
-        conceptNeeded: result.conceptNeeded,
-        localExplanation: result.explanation
-      }).then(evaRes => {
-        if (evaRes && evaRes.explanation && explanationText && explanationText.active) {
-          explanationText.setText(`✨ ${evaRes.tutorName}:\n${evaRes.explanation}`);
-          explanationText.setColor('#e0f2fe');
-        }
-      }).catch(err => {
-        console.warn('[ChallengeModal] Error consultando tutor IA:', err);
-      });
+      try {
+        tutorService.requestErrorExplanation({
+          challengeId: this.currentChallenge.id,
+          competencyName: meta?.name || compId || 'Pensamiento Lógico',
+          skillName: this.currentChallenge.skillName,
+          context: this.currentChallenge.context,
+          statement: this.currentChallenge.statement,
+          selectedOption: result.selectedOption,
+          conceptNeeded: result.conceptNeeded,
+          localExplanation: result.explanation
+        }).then(evaRes => {
+          if (evaRes && evaRes.explanation && explanationText && explanationText.active) {
+            explanationText.setText(`✨ ${evaRes.tutorName}:\n${evaRes.explanation}`);
+            explanationText.setColor('#e0f2fe');
+          }
+        }).catch(err => {
+          console.warn('[ChallengeModal] Error consultando tutor IA:', err);
+        });
+      } catch (err) {
+        console.warn('[ChallengeModal] Error invocando tutor IA:', err);
+      }
     }
 
     contentY += 75;

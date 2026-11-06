@@ -68,8 +68,16 @@ export class AdaptiveEngine {
     const lastTwoCorrect = recent.length === 2 && recent.every(r => r.isCorrect && r.attempts === 1 && r.hintsUsed === 0);
     const lastTwoFailed = recent.length === 2 && recent.every(r => !r.isCorrect || r.attempts >= 3);
 
+    // REGLA DE DOMINIO POR FLUIDEZ / VELOCIDAD:
+    // Si responde correctamente en el 1er intento sin pistas y en <= 12 segundos, incrementa de inmediato
+    if (isCorrect && attempts === 1 && hintsUsed === 0 && timeSeconds > 0 && timeSeconds <= 12 && currentLevel < 5) {
+      action = ADAPTIVE_ACTIONS.INCREASE;
+      nextLevel = currentLevel + 1;
+      reason = 'Dominio por fluidez y velocidad de respuesta';
+      explanation = `¡Extraordinaria agilidad mental! Tu rapidez (${timeSeconds.toFixed(1)}s) y precisión en el primer intento demuestran dominio del tema. La dificultad se eleva de inmediato a ${DIFFICULTY_LABELS[nextLevel]}.`;
+    }
     // REGLA 1: Aumentar Dificultad (Dc + 1)
-    if (isCorrect && lastTwoCorrect && currentLevel < 5) {
+    else if (isCorrect && lastTwoCorrect && currentLevel < 5) {
       action = ADAPTIVE_ACTIONS.INCREASE;
       nextLevel = currentLevel + 1;
       reason = 'Alta precisión y autonomía comprobada';
