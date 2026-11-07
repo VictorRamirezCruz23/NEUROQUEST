@@ -37,6 +37,9 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
 
     this.direction = 1; // 1 = derecha, -1 = izquierda
     this.isAlive = true;
+    this.hp = options.hp !== undefined ? options.hp : 2;
+    this.maxHp = this.hp;
+    this.lastDamageTime = 0; // Cooldown de 2s para no infligir daño continuo al jugador
     this.state = 'PATROL'; // PATROL, SEARCH, CHASE, ATTACKING, COMBAT, HURT, DYING, DEAD
     this.combatCooldownTimer = 0;
     
@@ -66,19 +69,27 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
 
   /**
    * Impacto de proyectil del jugador sobre MatBot.
-   * Se desestabiliza y retrocede.
+   * Se desestabiliza y retrocede, pero NO se destruye con balas:
+   * Requiere responder la pregunta en el duelo curricular para ser derrotado.
+   * @param {import('./EnergyProjectile.js').EnergyProjectile} projectile
    */
   takeProjectileDamage(projectile) {
-    if (!this.isAlive || this.state === 'DEAD' || this.state === 'COMBAT') return;
+    if (!this.isAlive || this.state === 'DEAD' || this.state === 'COMBAT' || this.state === 'DYING') return;
 
     this.scene.soundManager?.playHit();
+
+    // Destello de desestabilización
     this.setTint(0xfde047);
-    this.scene.time.delayedCall(150, () => {
+    this.scene.time.delayedCall(140, () => {
       if (this.active && this.isAlive) this.clearTint();
     });
 
-    const pushDir = projectile?.direction || (this.flipX ? 1 : -1);
-    this.setVelocityX(pushDir * 140);
+    // Retroceso por impacto
+    const pushDir = projectile?.direction || (this.x > (this.scene.player?.x || 0) ? 1 : -1);
+    this.setVelocityX(pushDir * 160);
+
+    // Diálogo cómico recordando la regla pedagógica
+    this.mostrarDialogo("¡Debes responder mi pregunta!", '#fbbf24');
   }
 
   /**
@@ -280,43 +291,52 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Ejecuta la animación y efectos de derrota al responder bien el jugador.
+   * Ejecuta la secuencia y efectos de derrota al contestar correctamente en el duelo.
+   * Desactiva físicas inmediatamente, produce explosión y despawnea por completo sin dejar restos en el suelo.
    */
   playDefeat(onComplete) {
+    if (!this.isAlive && this.state === 'DEAD') return;
     this.isAlive = false;
-    this.state = 'DYING';
+    this.state = 'DEAD';
+
+    const deathX = this.x;
+    const deathY = this.y;
+    const currentScene = this.scene;
+
+    // Desactivar físicas y ocultar inmediatamente para que no vuelva a colisionar ni preguntar
+    if (this.body) {
+      this.body.enable = false;
+    }
     this.setVelocity(0, 0);
+    this.setVisible(false);
 
-    // Frase cómica de derrota
-    this.mostrarDialogo("¡Error... 404... cerebro... frito...", '#f59e0b');
+    // Efecto de sonido de explosión
+    if (currentScene?.soundManager) {
+      currentScene.soundManager.playExplosion();
+    }
 
-    // Efecto de chispas y partículas de circuito
-    const emitter = this.scene.add.particles(this.x, this.y, 'tile_platform', {
-      speed: { min: 40, max: 140 },
-      angle: { min: 0, max: 360 },
-      scale: { start: 0.15, end: 0 },
-      tint: [0xef4444, 0xf59e0b, 0x38bdf8],
-      lifespan: 600,
-      quantity: 12
-    });
-
-    this.scene.time.delayedCall(500, () => emitter.destroy());
-
-    this.play('matbot_hurt', true);
-    this.scene.time.delayedCall(250, () => {
-      this.play('matbot_die', true);
-    });
-
-    this.scene.tweens.add({
-      targets: this,
-      alpha: 0,
-      duration: 700,
-      ease: 'Power2',
-      onComplete: () => {
-        if (typeof onComplete === 'function') onComplete();
-        this.destroyMatBot();
+    // Chispas de sobrecarga de circuito en el punto de muerte
+    if (currentScene && currentScene.add) {
+      const sparks = currentScene.add.graphics();
+      sparks.fillStyle(0xf59e0b, 0.95);
+      for (let i = 0; i < 12; i++) {
+        sparks.fillCircle(deathX + (Math.random() * 36 - 18), deathY + (Math.random() * 36 - 18), Math.random() * 3 + 1);
       }
-    });
+      currentScene.tweens.add({
+        targets: sparks,
+        alpha: 0,
+        scaleX: 1.8,
+        scaleY: 1.8,
+        duration: 350,
+        onComplete: () => sparks.destroy()
+      });
+    }
+
+    if (typeof onComplete === 'function') {
+      onComplete();
+    }
+
+    this.destroyMatBot();
   }
 
   setCooldown(durationMs = 3500) {
@@ -358,6 +378,17 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
     if (this.body) {
       this.body.enable = false;
     }
+
+    if (this.scene?.matbotGroup) {
+      this.scene.matbotGroup.remove(this, false, false);
+    }
+    if (this.scene?.matbots) {
+      const idx = this.scene.matbots.indexOf(this);
+      if (idx !== -1) {
+        this.scene.matbots.splice(idx, 1);
+      }
+    }
+
     this.destroy();
   }
 }

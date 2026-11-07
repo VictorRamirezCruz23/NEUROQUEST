@@ -240,7 +240,60 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Dispara una bolita de energía azul en la dirección que mira el jugador.
+   * Dispara un proyectil de energía hacia una coordenada específica del mundo (apuntado por clic o toque táctil).
+   * @param {number} targetX - Posición X de destino en coordenadas de mundo
+   * @param {number} targetY - Posición Y de destino en coordenadas de mundo
+   */
+  shootAt(targetX, targetY) {
+    if (this.isLocked) return;
+
+    const now = Date.now();
+    if (now - this.lastShootTime < this.shootCooldown) return;
+    this.lastShootTime = now;
+
+    this.isAttacking = true;
+
+    // Orientar al personaje hacia la dirección del clic o tap táctil
+    if (targetX < this.x) {
+      this.setFlipX(true);
+    } else if (targetX > this.x) {
+      this.setFlipX(false);
+    }
+
+    if (this.scene.soundManager && typeof this.scene.soundManager.playLaser === 'function') {
+      this.scene.soundManager.playLaser();
+    }
+
+    const key = this.scene.anims.exists('player_attack') ? 'player_attack' : 'player_punch';
+    if (this.scene.anims.exists(key)) {
+      this.play(key, true);
+    }
+
+    // Instanciar proyectil dirigido con color aleatorio dinámico
+    const dir = this.flipX ? -1 : 1;
+    const spawnX = this.x + (dir * 26);
+    const spawnY = this.y - 8;
+    const proj = new EnergyProjectile(this.scene, spawnX, spawnY, {
+      targetX,
+      targetY
+    });
+
+    if (this.scene.playerProjectiles) {
+      this.scene.playerProjectiles.add(proj);
+      if (proj.body) {
+        proj.body.allowGravity = false;
+        proj.body.gravity.set(0, 0);
+      }
+    }
+
+    if (this.attackSafetyTimer) this.attackSafetyTimer.remove();
+    this.attackSafetyTimer = this.scene.time.delayedCall(320, () => {
+      if (this.isAttacking) this.finishAttack();
+    });
+  }
+
+  /**
+   * Dispara una bolita de energía multicolor en la dirección frontal del jugador.
    */
   shoot() {
     if (this.isLocked) return;
@@ -260,7 +313,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.play(key, true);
     }
 
-    // Instanciar proyectil de energía azul
+    // Instanciar proyectil de energía multicolor en la dirección frontal
     const dir = this.flipX ? -1 : 1;
     const spawnX = this.x + (dir * 28);
     const spawnY = this.y - 8;
@@ -268,6 +321,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     if (this.scene.playerProjectiles) {
       this.scene.playerProjectiles.add(proj);
+      if (proj.body) {
+        proj.body.allowGravity = false;
+        proj.body.gravity.set(0, 0);
+      }
     }
 
     if (this.attackSafetyTimer) this.attackSafetyTimer.remove();

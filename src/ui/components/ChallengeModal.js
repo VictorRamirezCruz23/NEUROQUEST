@@ -61,6 +61,9 @@ export class ChallengeModal {
     if (this.scene && this.scene.virtualControls) {
       this.scene.virtualControls.setVisible(false);
     }
+    if (this.scene && typeof this.scene.setHUDVisible === 'function') {
+      this.scene.setHUDVisible(false);
+    }
 
     if (options.challenge) {
       this.currentChallenge = options.challenge;
@@ -918,6 +921,9 @@ export class ChallengeModal {
     if (this.player) this.player.unfreeze();
     if (this.scene && this.scene.virtualControls) {
       this.scene.virtualControls.setVisible(true);
+    }
+    if (this.scene && typeof this.scene.setHUDVisible === 'function') {
+      this.scene.setHUDVisible(true);
     }
     if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
       this.scene.updateHUDLevel();

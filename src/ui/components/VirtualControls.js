@@ -176,6 +176,8 @@ export class VirtualControls {
         this.scene.events.emit('touch-interact');
       }
     });
+    // Oculto por defecto: únicamente aparece cuando el jugador se acerca a una consola
+    this.interactBtn.setVisible(false);
 
     // =========================================================================
     // 3. BARRA SUPERIOR DE ACCESOS RÁPIDOS MÓVILES
@@ -306,6 +308,14 @@ export class VirtualControls {
       },
       setHighlight: (highlight, customBorder) => {
         draw(false, highlight ? (customBorder || 0x10b981) : null);
+      },
+      setVisible: (visible) => {
+        bgGfx.setVisible(visible);
+        labelText.setVisible(visible);
+        hitZone.setVisible(visible);
+        if (hitZone.input) {
+          hitZone.input.enabled = visible;
+        }
       }
     };
 
@@ -355,8 +365,9 @@ export class VirtualControls {
 
       this.interactBtn.setLabel(label, color);
       this.interactBtn.setHighlight(true, border);
+      this.interactBtn.setVisible(this.visible !== false);
     } else {
-      this.interactBtn.setLabel('[E] ACCIÓN', '#94a3b8');
+      this.interactBtn.setVisible(false);
       this.interactBtn.setHighlight(false);
     }
   }
@@ -393,6 +404,11 @@ export class VirtualControls {
         el.input.enabled = visible;
       }
     });
+
+    // Mantener interactBtn oculto si los controles son visibles pero el jugador no está junto a una consola
+    if (visible && this.interactBtn && !this.isNearTerminal) {
+      this.interactBtn.setVisible(false);
+    }
   }
 
   update() {

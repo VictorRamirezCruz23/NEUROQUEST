@@ -451,12 +451,12 @@ export class PreloadScene extends Phaser.Scene {
     }
 
     // 7. Golpe / Ataque de acción (player_punch y player_attack)
+    // Los frames 18 a 21 corresponden a la animación de ataque corporal; el frame 22 es el icono recortado de la cabeza
     const attackFrames = [
       { key: pTex, frame: 18 },
       { key: pTex, frame: 19 },
       { key: pTex, frame: 20 },
-      { key: pTex, frame: 21 },
-      { key: pTex, frame: 22 }
+      { key: pTex, frame: 21 }
     ];
 
     if (!this.anims.exists('player_punch')) {

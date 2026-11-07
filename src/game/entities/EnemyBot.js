@@ -78,23 +78,24 @@ export class EnemyBot extends MatBot {
       }
     }
 
-    this.shieldHp = 2; // Resistencia a proyectiles antes de desestabilizarse completamente
+    this.hp = options.hp !== undefined ? options.hp : (this.botType === 'warbot' ? 3 : 2);
+    this.maxHp = this.hp;
+    this.lastDamageTime = 0; // Cooldown de 2s para no infligir daño continuo
   }
 
   /**
-   * Reacción ante impacto de proyectil de energía azul del jugador.
-   * Se desestabiliza/aturde y retrocede, pero requiere resolver la pregunta para derrotarse.
+   * Reacción ante impacto de proyectil de energía del jugador.
+   * Se desestabiliza y retrocede, pero requiere resolver la pregunta en duelo para derrotarse.
    * @param {import('./EnergyProjectile.js').EnergyProjectile} projectile
    */
   takeProjectileDamage(projectile) {
-    if (!this.isAlive || this.state === 'DEAD' || this.state === 'COMBAT') return;
+    if (!this.isAlive || this.state === 'DEAD' || this.state === 'COMBAT' || this.state === 'DYING') return;
 
-    this.shieldHp = Math.max(0, this.shieldHp - 1);
     this.scene.soundManager?.playHit();
 
     // Destello de desestabilización
     this.setTint(0xfde047);
-    this.scene.time.delayedCall(150, () => {
+    this.scene.time.delayedCall(140, () => {
       if (this.active && this.isAlive) this.clearTint();
     });
 
@@ -110,8 +111,8 @@ export class EnemyBot extends MatBot {
       }
     });
 
-    // Desplegar texto de escudo debilitado
-    const txt = this.scene.add.text(this.x, this.y - 30, '⚠️ ESCUDO VULNERABLE', {
+    // Desplegar aviso de que requiere resolver la pregunta curricular
+    const txt = this.scene.add.text(this.x, this.y - 30, '⚡ ¡RESPONDE LA PREGUNTA!', {
       fontFamily: 'monospace',
       fontSize: '9px',
       color: '#fbbf24',
@@ -123,7 +124,7 @@ export class EnemyBot extends MatBot {
       targets: txt,
       y: this.y - 50,
       alpha: 0,
-      duration: 500,
+      duration: 600,
       onComplete: () => txt.destroy()
     });
   }

@@ -39,6 +39,9 @@ export class ParasiteBot extends MatBot {
     // Estados extendidos
     // 'CRAWL', 'WALL_CLING', 'SCANNING', 'UNFOLD', 'STRIKE', 'PHASE_DASH', 'STUNNED', 'DISSOLVING'
     this.state = 'CRAWL';
+    this.hp = options.hp !== undefined ? options.hp : 3;
+    this.maxHp = this.hp;
+    this.lastDamageTime = 0;
     this.crawlCycleTimer = 0;
     this.scanCooldown = 3500; // ms entre pulsos de escaneo
     this.lastScanTime = 0;
@@ -187,15 +190,18 @@ export class ParasiteBot extends MatBot {
       patch.isCorruptPatch = true;
 
       // Parpadeo de advertencia antes de desaparecer en 6 segundos
-      this.scene.time.delayedCall(4500, () => {
-        if (patch.active) {
-          this.scene.tweens.add({
+      const currentScene = this.scene;
+      currentScene.time.delayedCall(4500, () => {
+        if (patch && patch.active && patch.scene && patch.scene.tweens) {
+          patch.scene.tweens.add({
             targets: patch,
             alpha: 0.1,
             duration: 150,
             yoyo: true,
             repeat: 5,
-            onComplete: () => patch.destroy()
+            onComplete: () => {
+              if (patch.active) patch.destroy();
+            }
           });
         }
       });
@@ -250,32 +256,40 @@ export class ParasiteBot extends MatBot {
   }
 
   /**
-   * Sobrecarga de Sistema (Stun State) al recibir impactos continuos.
+   * Sobrecarga de Sistema (Stun State) al recibir impactos de proyectiles.
+   * Los bots terrestres no mueren por balas; requieren responder la pregunta.
    */
   takeProjectileDamage(projectile) {
-    if (!this.isAlive || this.state === 'DEAD' || this.state === 'COMBAT') return;
+    if (!this.isAlive || this.state === 'DEAD' || this.state === 'COMBAT' || this.state === 'DISSOLVING' || this.state === 'DYING') return;
 
     this.scene.soundManager?.playHit();
 
-    // Entrar en System Overload (Stun)
+    // Entrar en System Overload (Stun) y leve retroceso
     this.state = 'STUNNED';
-    this.setVelocity(0, 0);
+    const pushDir = projectile ? (projectile.x < this.x ? 1 : -1) : 1;
+    this.setVelocity(pushDir * 100, -60);
     this.setTint(0x00f0ff);
 
-    // Chispas de sobrecarga en articulaciones
-    const sparks = this.scene.add.graphics();
-    sparks.fillStyle(0x00f0ff, 0.9);
-    for (let i = 0; i < 6; i++) {
-      sparks.fillCircle(this.x + (Math.random() * 24 - 12), this.y + (Math.random() * 20 - 10), 2);
+    if (this.scene) {
+      this.scene.showFloatingNotice?.(this.x, this.y - 45, '⚡ ¡RESPONDE LA PREGUNTA!', '#00f0ff');
     }
-    this.scene.tweens.add({
-      targets: sparks,
-      alpha: 0,
-      duration: 350,
-      onComplete: () => sparks.destroy()
-    });
 
-    this.scene.time.delayedCall(this.stunDuration, () => {
+    // Chispas de sobrecarga en articulaciones
+    if (this.scene && this.scene.add) {
+      const sparks = this.scene.add.graphics();
+      sparks.fillStyle(0x00f0ff, 0.9);
+      for (let i = 0; i < 6; i++) {
+        sparks.fillCircle(this.x + (Math.random() * 24 - 12), this.y + (Math.random() * 20 - 10), 2);
+      }
+      this.scene.tweens?.add({
+        targets: sparks,
+        alpha: 0,
+        duration: 350,
+        onComplete: () => sparks.destroy()
+      });
+    }
+
+    this.scene.time?.delayedCall(this.stunDuration || 1200, () => {
       if (this.active && this.isAlive && this.state === 'STUNNED') {
         this.clearTint();
         this.state = 'CRAWL';
@@ -284,48 +298,70 @@ export class ParasiteBot extends MatBot {
   }
 
   /**
-   * Secuencia de destrucción con Digital Dissolve en polvo binario.
+   * Secuencia de destrucción con Digital Dissolve en polvo binario y despawn definitivo.
    */
   destroyMatBot() {
-    if (this.state === 'DISSOLVING') return;
+    if (this.state === 'DISSOLVING' || this.state === 'DEAD') return;
     this.state = 'DISSOLVING';
     this.isAlive = false;
 
-    if (this.crawlerTag) this.crawlerTag.destroy();
-    if (this.scanConeGfx) this.scanConeGfx.destroy();
+    // Desactivar físicas y ocultar inmediatamente para que no vuelva a colisionar ni interactuar
+    if (this.body) {
+      this.body.enable = false;
+    }
+    this.setVelocity(0, 0);
+    this.setVisible(false);
 
-    // Critical Failure: Explosión de fragmentos cibernéticos
-    this.scene.soundManager?.playExplosion();
-    this.scene.cameras.main.shake(200, 0.015);
-
-    // Digital Dissolve (desvanecimiento en polvo binario)
-    const dissolveGfx = this.scene.add.graphics();
-    dissolveGfx.fillStyle(0x00f0ff, 1);
-
-    for (let i = 0; i < 20; i++) {
-      const rx = this.x + (Math.random() * 40 - 20);
-      const ry = this.y + (Math.random() * 30 - 15);
-      dissolveGfx.fillRect(rx, ry, 3, 3);
+    if (this.crawlerTag) {
+      this.crawlerTag.destroy();
+      this.crawlerTag = null;
+    }
+    if (this.scanConeGfx) {
+      this.scanConeGfx.destroy();
+      this.scanConeGfx = null;
     }
 
-    this.scene.tweens.add({
-      targets: dissolveGfx,
-      y: -40,
-      alpha: 0,
-      duration: 500,
-      onComplete: () => dissolveGfx.destroy()
-    });
+    const currentScene = this.scene;
 
-    this.scene.tweens.add({
-      targets: this,
-      alpha: 0,
-      scaleX: 0.05,
-      scaleY: 0.05,
-      duration: 300,
-      onComplete: () => {
-        super.destroyMatBot();
+    // Remover de listas y grupos de escena de inmediato
+    if (currentScene?.parasiteGroup) {
+      currentScene.parasiteGroup.remove(this, false, false);
+    }
+    if (currentScene?.matbotGroup) {
+      currentScene.matbotGroup.remove(this, false, false);
+    }
+    if (currentScene?.matbots) {
+      const idx = currentScene.matbots.indexOf(this);
+      if (idx !== -1) {
+        currentScene.matbots.splice(idx, 1);
       }
-    });
+    }
+
+    // Critical Failure: Explosión de fragmentos cibernéticos
+    currentScene?.soundManager?.playExplosion();
+    currentScene?.cameras?.main?.shake(200, 0.015);
+
+    // Digital Dissolve (desvanecimiento en polvo binario)
+    if (currentScene && currentScene.add) {
+      const dissolveGfx = currentScene.add.graphics();
+      dissolveGfx.fillStyle(0x00f0ff, 1);
+
+      for (let i = 0; i < 20; i++) {
+        const rx = this.x + (Math.random() * 40 - 20);
+        const ry = this.y + (Math.random() * 30 - 15);
+        dissolveGfx.fillRect(rx, ry, 3, 3);
+      }
+
+      currentScene.tweens?.add({
+        targets: dissolveGfx,
+        y: -40,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => dissolveGfx.destroy()
+      });
+    }
+
+    super.destroyMatBot();
   }
 
   destroy(fromScene) {

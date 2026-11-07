@@ -43,6 +43,7 @@ export class FlyingBot extends Phaser.Physics.Arcade.Sprite {
     this.chaseSpeed = type === 'ajolotebot' ? 150 : 130;
     this.detectionRadius = 260;
     this.direction = 1;
+    this.lastDamageTime = 0; // Cooldown de 2s para no infligir daño continuo
     this.state = 'PATROL'; // 'PATROL', 'CHASE', 'HURT', 'DEAD'
 
     // Físicas aéreas (sin gravedad)
@@ -167,19 +168,42 @@ export class FlyingBot extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * Explosión robótica definitiva y eliminación del enemigo aéreo.
+   * Explosión robótica definitiva y eliminación del enemigo aéreo con despawn completo.
    */
   destroyWithExplosion() {
     if (!this.isAlive) return;
     this.isAlive = false;
 
+    // Desactivar físicas inmediatamente para que no colisione ni haga daño mientras desaparece
+    if (this.body) {
+      this.body.enable = false;
+    }
+    this.setVelocity(0, 0);
+
+    // Remover de listas y grupos de escena de inmediato
+    if (this.scene?.flyingGroup) {
+      this.scene.flyingGroup.remove(this, false, false);
+    }
+    if (this.scene?.flyingBots) {
+      const idx = this.scene.flyingBots.indexOf(this);
+      if (idx !== -1) {
+        this.scene.flyingBots.splice(idx, 1);
+      }
+    }
+
     // Sonido de explosión espacial
-    if (this.scene.soundManager) {
+    if (this.scene?.soundManager) {
       this.scene.soundManager.playExplosion();
     }
 
+    // Registrar eliminación en la escena
+    if (this.scene) {
+      this.scene.enemiesDefeated = (this.scene.enemiesDefeated || 0) + 1;
+      this.scene.checkAllEnemiesDefeated?.();
+    }
+
     // Vibración de cámara
-    this.scene.cameras.main.shake(180, 0.012);
+    this.scene?.cameras?.main?.shake(180, 0.012);
 
     // Destruir texto de nombre
     if (this.nameText) {
@@ -217,7 +241,7 @@ export class FlyingBot extends Phaser.Physics.Arcade.Sprite {
       onComplete: () => shockwave.destroy()
     });
 
-    // Desvanecimiento del sprite
+    // Desvanecimiento del sprite y despawn definitivo
     this.scene.tweens.add({
       targets: this,
       alpha: 0,

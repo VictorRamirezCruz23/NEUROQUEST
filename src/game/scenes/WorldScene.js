@@ -148,14 +148,13 @@ export class WorldScene extends Phaser.Scene {
     // 6c. Contacto y combate táctico con enemigos terrestres (MatBot, BrainBot, ParasiteBot, etc.)
     if (this.matbotGroup) {
       this.physics.add.overlap(this.player, this.matbotGroup, (player, bot) => {
-        if (this.isInvulnerable || this.isGameOver || this.isVictory || !bot.isAlive) return;
+        if (this.isInvulnerable || this.isGameOver || this.isVictory || !bot.isAlive || bot.state === 'DEAD' || bot.state === 'DYING' || bot.state === 'DISSOLVING') return;
         if (this.battleArena && this.battleArena.isOpen) return;
 
-        // Reducir estrictamente 1 vida y aplicar invulnerabilidad temporal (i-frames: 1.8s)
-        this.damagePlayer(1, bot);
+        // El contacto físico no quita vida: el desafío pedagógico se resuelve en el duelo
         if (bot.setVelocityX) bot.setVelocityX(0);
 
-        // Activar combate táctico de preguntas sin restar vidas extra
+        // Activar combate táctico de preguntas
         this.startCombatDuel(bot);
       });
     }
@@ -237,6 +236,20 @@ export class WorldScene extends Phaser.Scene {
       this.openDashboard();
     });
 
+    // Disparo con puntero hacia la posición del clic (PC) o tap con el dedo (Móvil)
+    this.onWorldPointerDown = (pointer, currentlyOver) => {
+      // Si el clic/tap ocurrió sobre un elemento UI o botón interactivo, no disparar
+      if (currentlyOver && currentlyOver.length > 0) return;
+      if (this.battleArena?.isOpen || this.challengeModal?.isOpen || this.trophyModal?.isOpen || this.theoryModal?.isOpen) return;
+      if (this.isGameOver || this.isVictory) return;
+      if (!this.player || !this.player.active || this.player.isLocked) return;
+
+      // Obtener coordenada de mundo exacta considerando el scroll y zoom de la cámara principal
+      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      this.player.shootAt(worldPoint.x, worldPoint.y);
+    };
+    this.input.on('pointerdown', this.onWorldPointerDown);
+
     this.events.on('touch-interact', () => {
       this.handleTerminalInteraction();
     });
@@ -250,6 +263,10 @@ export class WorldScene extends Phaser.Scene {
     });
 
     this.events.once('shutdown', () => {
+      if (this.onWorldPointerDown) {
+        this.input.off('pointerdown', this.onWorldPointerDown);
+        this.onWorldPointerDown = null;
+      }
       this.events.off('touch-interact');
       this.events.off('touch-switch-route');
       this.events.off('touch-open-dashboard');
@@ -395,8 +412,8 @@ export class WorldScene extends Phaser.Scene {
       });
     }
 
-    // 3. Proyectiles del jugador
-    this.playerProjectiles = this.physics.add.group({ runChildUpdate: true });
+    // 3. Proyectiles del jugador (con gravedad desactivada a nivel de grupo)
+    this.playerProjectiles = this.physics.add.group({ runChildUpdate: true, allowGravity: false });
 
     // 4. Terminales interactivas
     this.terminals = this.physics.add.staticGroup();
@@ -485,6 +502,7 @@ export class WorldScene extends Phaser.Scene {
     // 10. Meta Final de Victoria
     this.victoryGoal = this.physics.add.staticSprite(levelData.victoryGoal.x, levelData.victoryGoal.y, 'victory_flag');
     this.victoryGoal.refreshBody();
+    this.updateVictoryGoalStatus();
 
     this.tweens.add({
       targets: this.victoryGoal,
@@ -575,10 +593,12 @@ export class WorldScene extends Phaser.Scene {
       });
     });
 
-    // 5. Mover meta al nuevo final
+    // 5. Mover meta al nuevo final y actualizar estado de bloqueo
     if (this.victoryGoal) {
       this.victoryGoal.setPosition(chunkData.victoryGoal.x, chunkData.victoryGoal.y);
       this.victoryGoal.refreshBody();
+      this.victoryGoalUnlockedAnnounced = false;
+      this.updateVictoryGoalStatus();
     }
 
     // Destello cromático según el nuevo tema neón (estilo Geometry Dash)
@@ -599,92 +619,111 @@ export class WorldScene extends Phaser.Scene {
   createHUD() {
     const baseDepth = 1500;
     const { width, height } = this.scale;
+    this.hudObjects = [];
 
-    // Panel Identidad (Izquierda)
-    const topBar = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
+    const trackHud = (obj) => {
+      this.hudObjects.push(obj);
+      return obj;
+    };
+
+    // 1. Panel Identidad (Izquierda) - Compacto y protegido contra solapamientos
+    const topBarW = Math.min(265, Math.floor(width * 0.28));
+    const topBarH = 46;
+    const topBarX = 14;
+    const topBarY = 12;
+
+    const topBar = trackHud(this.add.graphics().setScrollFactor(0).setDepth(baseDepth));
     topBar.fillStyle(0x0f172a, 0.92);
-    topBar.fillRoundedRect(16, 14, 380, 48, 6);
+    topBar.fillRoundedRect(topBarX, topBarY, topBarW, topBarH, 6);
     topBar.lineStyle(2, this.meta.primaryColor, 0.85);
-    topBar.strokeRoundedRect(16, 14, 380, 48, 6);
+    topBar.strokeRoundedRect(topBarX, topBarY, topBarW, topBarH, 6);
 
-    const badge = this.add.graphics().setScrollFactor(0).setDepth(baseDepth + 1);
+    const badge = trackHud(this.add.graphics().setScrollFactor(0).setDepth(baseDepth + 1));
     badge.fillStyle(this.meta.badgeBg, 1);
-    badge.fillRoundedRect(24, 20, 36, 36, 6);
+    badge.fillRoundedRect(topBarX + 8, topBarY + 7, 32, 32, 5);
     badge.lineStyle(1, this.meta.primaryColor, 1);
-    badge.strokeRoundedRect(24, 20, 36, 36, 6);
+    badge.strokeRoundedRect(topBarX + 8, topBarY + 7, 32, 32, 5);
 
-    this.add.text(42, 38, this.meta.code, {
+    trackHud(this.add.text(topBarX + 24, topBarY + 23, this.meta.code, {
       fontFamily: 'monospace',
-      fontSize: '17px',
+      fontSize: '15px',
       color: '#ffffff',
       fontStyle: 'bold'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2));
 
-    this.add.text(68, 20, `MUNDO ${this.meta.worldNumber}: ${this.meta.name.toUpperCase()} (S${this.sectorNumber})`, {
+    trackHud(this.add.text(topBarX + 46, topBarY + 6, `MUNDO ${this.meta.worldNumber}: ${this.meta.name.toUpperCase()} (S${this.sectorNumber})`, {
       fontFamily: 'monospace',
-      fontSize: '11px',
+      fontSize: '9.5px',
       color: this.meta.primaryColorHex,
       fontStyle: 'bold'
-    }).setScrollFactor(0).setDepth(baseDepth + 2);
+    }).setScrollFactor(0).setDepth(baseDepth + 2));
 
-    this.levelText = this.add.text(68, 38, `${this.meta.discipline} • Calibrando...`, {
+    this.levelText = trackHud(this.add.text(topBarX + 46, topBarY + 22, `${this.meta.discipline} • Calibrando...`, {
       fontFamily: 'monospace',
-      fontSize: '10px',
+      fontSize: '8.5px',
       color: '#94a3b8'
-    }).setScrollFactor(0).setDepth(baseDepth + 2);
+    }).setScrollFactor(0).setDepth(baseDepth + 2));
 
     this.updateHUDLevel();
 
-    // Medidor Central de Vidas con iconos gráficos de la cabeza del jugador (player_head.png)
-    const livesBox = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
-    livesBox.fillStyle(0x0f172a, 0.92);
-    livesBox.fillRoundedRect(width / 2 - 130, 10, 260, 54, 6);
-    livesBox.lineStyle(2, 0x38bdf8, 0.85);
-    livesBox.strokeRoundedRect(width / 2 - 130, 10, 260, 54, 6);
+    // 2. Medidor Central de Vidas - Compacto, centrado y con espacio generoso a ambos lados
+    const livesBoxW = 160;
+    const livesBoxH = 46;
+    const livesBoxX = Math.floor(width / 2 - livesBoxW / 2);
+    const livesBoxY = 12;
 
-    this.livesLabel = this.add.text(width / 2, 20, 'BLINDAJE DE ENERGÍA', {
+    const livesBox = trackHud(this.add.graphics().setScrollFactor(0).setDepth(baseDepth));
+    livesBox.fillStyle(0x0f172a, 0.92);
+    livesBox.fillRoundedRect(livesBoxX, livesBoxY, livesBoxW, livesBoxH, 6);
+    livesBox.lineStyle(2, 0x38bdf8, 0.85);
+    livesBox.strokeRoundedRect(livesBoxX, livesBoxY, livesBoxW, livesBoxH, 6);
+
+    this.livesLabel = trackHud(this.add.text(width / 2, livesBoxY + 8, 'BLINDAJE DE ENERGÍA', {
       fontFamily: 'monospace',
-      fontSize: '9px',
+      fontSize: '8.5px',
       color: '#94a3b8',
       fontStyle: 'bold'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2));
 
     this.lifeHeadIcons = [];
-    const headSpacing = 28;
+    const headSpacing = 22;
     const startHeadX = (width / 2) - ((this.maxLives - 1) * headSpacing) / 2;
     for (let i = 0; i < this.maxLives; i++) {
       const hx = startHeadX + (i * headSpacing);
-      const icon = this.add.image(hx, 42, 'player_head')
-        .setDisplaySize(22, 22)
+      const icon = trackHud(this.add.image(hx, livesBoxY + 28, 'player_head')
+        .setDisplaySize(18, 18)
         .setScrollFactor(0)
-        .setDepth(baseDepth + 2);
+        .setDepth(baseDepth + 2));
       this.lifeHeadIcons.push(icon);
     }
 
     // Indicador de Precisión en Combate
-    this.accuracyDisplay = this.add.text(width / 2, 74, '🎯 PRECISIÓN: 100% [0/0]', {
+    this.accuracyDisplay = trackHud(this.add.text(width / 2, livesBoxY + livesBoxH + 8, '🎯 PRECISIÓN: 100% [0/0]', {
       fontFamily: 'monospace',
-      fontSize: '10px',
+      fontSize: '9.5px',
       color: '#38bdf8',
       fontStyle: 'bold',
       backgroundColor: 'rgba(15, 23, 42, 0.92)',
-      padding: { x: 8, y: 3 }
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
+      padding: { x: 7, y: 2 }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2));
 
     this.updateLivesHUD();
 
-    // Botón Pantalla Completa (Responsive / Fullscreen)
-    const fsBtn = this.add.text(width - 24, 76, '⛶ PANTALLA COMPLETA', {
+    // 3. Barra de Acciones Superior Derecha
+    const rightMargin = 14;
+
+    // Botón Pantalla Completa
+    const fsBtn = trackHud(this.add.text(width - rightMargin, livesBoxY + livesBoxH + 8, '⛶ PANTALLA COMPLETA', {
       fontFamily: 'monospace',
-      fontSize: '10px',
+      fontSize: '9px',
       color: '#38bdf8',
       backgroundColor: 'rgba(15, 23, 42, 0.9)',
-      padding: { x: 8, y: 4 }
+      padding: { x: 6, y: 3 }
     })
     .setOrigin(1, 0)
     .setScrollFactor(0)
     .setDepth(baseDepth + 2)
-    .setInteractive({ useHandCursor: true });
+    .setInteractive({ useHandCursor: true }));
 
     fsBtn.on('pointerover', () => fsBtn.setColor('#ffffff'));
     fsBtn.on('pointerout', () => fsBtn.setColor('#38bdf8'));
@@ -697,13 +736,13 @@ export class WorldScene extends Phaser.Scene {
       }
     });
 
-    // Botón Superior Derecho "CAMBIAR RUTA [M]"
-    const btnX = width - 85;
-    const btnY = 38;
-    const btnW = 140;
-    const btnH = 34;
+    // Botón RUTAS [M]
+    const btnW = 90;
+    const btnH = 32;
+    const btnX = width - rightMargin - (btnW / 2);
+    const btnY = topBarY + (topBarH / 2);
 
-    const changeBg = this.add.graphics().setScrollFactor(0).setDepth(baseDepth);
+    const changeBg = trackHud(this.add.graphics().setScrollFactor(0).setDepth(baseDepth));
     const drawChangeBtn = (hover = false) => {
       changeBg.clear();
       changeBg.fillStyle(hover ? 0x2563eb : 0x1e293b, 0.95);
@@ -713,49 +752,51 @@ export class WorldScene extends Phaser.Scene {
     };
     drawChangeBtn(false);
 
-    this.add.text(btnX, btnY, 'RUTAS [M]', {
+    trackHud(this.add.text(btnX, btnY, 'RUTAS [M]', {
       fontFamily: 'monospace',
-      fontSize: '11px',
+      fontSize: '10px',
       color: '#ffffff',
       fontStyle: 'bold'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 1);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 1));
 
-    const changeHit = this.add.zone(btnX, btnY, btnW, btnH)
+    const changeHit = trackHud(this.add.zone(btnX, btnY, btnW, btnH)
       .setScrollFactor(0)
       .setDepth(baseDepth + 3)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }));
 
     changeHit.on('pointerover', () => drawChangeBtn(true));
     changeHit.on('pointerout', () => drawChangeBtn(false));
     changeHit.on('pointerdown', () => this.goToCompetencySelector());
 
     // Botón Métricas [B]
-    const metricsBtn = this.add.text(width - 200, 38, '📊 Métricas [B]', {
-      fontFamily: 'monospace',
-      fontSize: '11px',
-      color: '#38bdf8',
-      backgroundColor: 'rgba(15, 23, 42, 0.85)',
-      padding: { x: 8, y: 6 }
-    })
-    .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(baseDepth + 1)
-    .setInteractive({ useHandCursor: true });
-
-    metricsBtn.on('pointerdown', () => this.openDashboard());
-
-    // Botón Perfil
-    const profileBtn = this.add.text(width - 305, 38, `👤 ${authService.getDisplayName()}`, {
+    const metricsBtnX = btnX - (btnW / 2) - 8 - 45;
+    const metricsBtn = trackHud(this.add.text(metricsBtnX, btnY, '📊 Métricas [B]', {
       fontFamily: 'monospace',
       fontSize: '10px',
       color: '#38bdf8',
       backgroundColor: 'rgba(15, 23, 42, 0.85)',
-      padding: { x: 8, y: 6 }
+      padding: { x: 7, y: 5 }
     })
     .setOrigin(0.5)
     .setScrollFactor(0)
     .setDepth(baseDepth + 1)
-    .setInteractive({ useHandCursor: true });
+    .setInteractive({ useHandCursor: true }));
+
+    metricsBtn.on('pointerdown', () => this.openDashboard());
+
+    // Botón Perfil
+    const profileBtnX = metricsBtnX - 45 - 8 - 50;
+    const profileBtn = trackHud(this.add.text(profileBtnX, btnY, `👤 ${authService.getDisplayName()}`, {
+      fontFamily: 'monospace',
+      fontSize: '9.5px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+      padding: { x: 7, y: 5 }
+    })
+    .setOrigin(0.5)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 1)
+    .setInteractive({ useHandCursor: true }));
 
     profileBtn.on('pointerdown', () => authModalController.open());
 
@@ -765,19 +806,33 @@ export class WorldScene extends Phaser.Scene {
       }
     });
 
-    // Barra informativa inferior
-    this.add.text(
+    // 4. Barra informativa inferior
+    trackHud(this.add.text(
       width / 2,
-      height - 18,
-      'Controles: [A/D] Correr • [W/Espacio] Saltar • [J] Golpe • [E] Terminal • [B] Métricas • Meta al final ➔',
+      height - 16,
+      'Controles: [A/D] Correr • [W/Espacio] Saltar • [Click / Tap] Disparo • [E] Terminal • [B] Métricas • Meta al final ➔',
       {
         fontFamily: 'monospace',
-        fontSize: '11px',
+        fontSize: '10px',
         color: '#cbd5e1',
         backgroundColor: 'rgba(15, 23, 42, 0.85)',
-        padding: { x: 10, y: 3 }
+        padding: { x: 8, y: 2 }
       }
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth);
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth));
+  }
+
+  /**
+   * Muestra u oculta los elementos del HUD principal para evitar superposiciones con modales.
+   * @param {boolean} visible
+   */
+  setHUDVisible(visible) {
+    if (this.hudObjects) {
+      this.hudObjects.forEach(obj => {
+        if (obj && typeof obj.setVisible === 'function') {
+          obj.setVisible(visible);
+        }
+      });
+    }
   }
 
   updateLivesHUD() {
@@ -865,6 +920,16 @@ export class WorldScene extends Phaser.Scene {
 
   damagePlayer(amount = 1, source = null) {
     if (this.isInvulnerable || this.isGameOver || this.isVictory) return;
+
+    // Cooldown específico por bot atacante: solo puede infligir daño 1 vez cada 2 segundos
+    const now = Date.now();
+    if (source && source.lastDamageTime && (now - source.lastDamageTime < 2000)) {
+      return;
+    }
+    if (source) {
+      source.lastDamageTime = now;
+    }
+
     this.isInvulnerable = true;
 
     // Reducir estrictamente de 1 en 1 vida
@@ -887,7 +952,7 @@ export class WorldScene extends Phaser.Scene {
       this.player.setVelocityY(-240);
     }
 
-    // Sistema de invulnerabilidad temporal (i-frames: 1800 ms) con parpadeo de sprite
+    // Sistema de invulnerabilidad temporal (i-frames: 2000 ms) con parpadeo del sprite
     if (this.player && this.player.active) {
       this.player.setTint(0xef4444);
       if (this.iframeTween) {
@@ -896,9 +961,9 @@ export class WorldScene extends Phaser.Scene {
       this.iframeTween = this.tweens.add({
         targets: this.player,
         alpha: 0.25,
-        duration: 110,
+        duration: 125,
         yoyo: true,
-        repeat: 7, // 8 oscilaciones de 220ms = ~1760ms
+        repeat: 7, // 8 ciclos de 250ms = 2000ms de i-frames
         onComplete: () => {
           if (this.player && this.player.active) {
             this.player.setAlpha(1);
@@ -909,8 +974,8 @@ export class WorldScene extends Phaser.Scene {
       });
     }
 
-    // Cooldown de 1.8 segundos para evitar pérdida múltiple de vidas
-    this.time.delayedCall(1800, () => {
+    // Cooldown estricto de 2.0 segundos para permitir nuevo daño
+    this.time.delayedCall(2000, () => {
       this.isInvulnerable = false;
       if (this.player && this.player.active) {
         this.player.setAlpha(1);
@@ -1018,7 +1083,10 @@ export class WorldScene extends Phaser.Scene {
             if (bot && typeof bot.playDefeat === 'function') {
               bot.playDefeat(() => {
                 this.showFloatingNotice(this.player.x, this.player.y - 60, '⚔️ ¡MATBOT DESTRUIDO!', '#34d399');
+                this.checkAllEnemiesDefeated();
               });
+            } else {
+              this.checkAllEnemiesDefeated();
             }
 
             // Si el jugador respondió rápido y subió de nivel, recalibrar los MatBots restantes en segundo plano
@@ -1090,53 +1158,7 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Aplica daño al jugador y verifica el estado de Game Over.
-   * @param {number} amount
-   */
-  damagePlayer(amount = 1) {
-    this.lives = Math.max(0, this.lives - amount);
-    this.updateLivesHUD();
 
-    if (this.soundManager) {
-      this.soundManager.playHit();
-    }
-
-    // Destello rojo de cámara
-    this.cameras.main.flash(300, 239, 68, 68);
-
-    // Parpadeo de invulnerabilidad
-    if (this.player) {
-      this.tweens.add({
-        targets: this.player,
-        alpha: 0.3,
-        duration: 100,
-        yoyo: true,
-        repeat: 5,
-        onComplete: () => {
-          if (this.player) this.player.setAlpha(1);
-        }
-      });
-    }
-
-    if (this.lives <= 0) {
-      this.time.delayedCall(450, () => {
-        this.triggerGameOver();
-      });
-    }
-  }
-
-  /**
-   * Recupera vidas del jugador hasta el tope de 5.
-   * @param {number} amount
-   */
-  healPlayer(amount = 1) {
-    if (this.lives < this.maxLives) {
-      this.lives = Math.min(this.maxLives, this.lives + amount);
-      this.updateLivesHUD();
-      this.cameras.main.flash(250, 16, 185, 129);
-    }
-  }
 
   showFloatingNotice(x, y, text, color = '#38bdf8') {
     const notice = this.add.text(x, y, text, {
@@ -1243,11 +1265,85 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /**
+   * Retorna la cantidad total de enemigos activos y vivos que quedan en el sector.
+   * @returns {number}
+   */
+  getRemainingEnemiesCount() {
+    let count = 0;
+    if (this.matbots) {
+      count += this.matbots.filter(b => b && b.active && b.isAlive && b.state !== 'DEAD' && b.state !== 'DYING' && b.state !== 'DISSOLVING').length;
+    }
+    if (this.flyingBots) {
+      count += this.flyingBots.filter(fb => fb && fb.active && fb.isAlive).length;
+    }
+    if (this.boss && this.boss.active && this.boss.isAlive) {
+      count += 1;
+    }
+    return count;
+  }
+
+  /**
+   * Actualiza el aspecto visual de la meta según si quedan o no enemigos en el sector.
+   */
+  updateVictoryGoalStatus() {
+    if (!this.victoryGoal) return;
+    const remaining = this.getRemainingEnemiesCount();
+    if (remaining > 0) {
+      // Bloqueada: tono carmesí / alerta
+      this.victoryGoal.setTint(0xf87171);
+    } else {
+      // Desbloqueada: sin tinte
+      this.victoryGoal.clearTint();
+    }
+  }
+
+  /**
+   * Verifica si todos los enemigos han sido neutralizados y desbloquea la meta con aviso.
+   */
+  checkAllEnemiesDefeated() {
+    this.updateVictoryGoalStatus();
+    const remaining = this.getRemainingEnemiesCount();
+    if (remaining === 0 && !this.victoryGoalUnlockedAnnounced) {
+      this.victoryGoalUnlockedAnnounced = true;
+      if (this.victoryGoal) {
+        this.victoryGoal.clearTint();
+        this.showFloatingNotice(
+          this.victoryGoal.x,
+          this.victoryGoal.y - 45,
+          '🔓 ¡SECTOR DESPEJADO!\nMeta desbloqueada',
+          '#10b981'
+        );
+      }
+    }
+  }
+
+  /**
    * Maneja la llegada a la Meta de Victoria del sector.
-   * Sin requisito restrictivo del 80%: El avance depende de superar los desafíos y llegar a la meta.
+   * Requiere neutralizar a todos los enemigos del sector para desbloquear el avance.
    */
   handleVictoryGoal() {
     if (this.isVictory || this.isGameOver) return;
+
+    // Verificar si aún quedan enemigos vivos en el sector
+    const remaining = this.getRemainingEnemiesCount();
+    if (remaining > 0) {
+      const now = Date.now();
+      if (!this.lastGoalNoticeTime || (now - this.lastGoalNoticeTime > 1800)) {
+        this.lastGoalNoticeTime = now;
+        this.soundManager?.playHit();
+        this.showFloatingNotice(
+          this.player ? this.player.x : this.victoryGoal.x,
+          this.player ? this.player.y - 50 : this.victoryGoal.y - 45,
+          `⛔ ¡SECTOR BLOQUEADO!\nDebes neutralizar a todos los enemigos (${remaining} restante${remaining > 1 ? 's' : ''})`,
+          '#ef4444'
+        );
+      }
+      // Empujar suavemente hacia atrás al jugador para impedir el paso
+      if (this.player && this.player.body) {
+        this.player.setVelocityX(-220);
+      }
+      return;
+    }
 
     const total = this.combatTotalQuestions;
     const correct = this.combatCorrectAnswers;

@@ -86,9 +86,12 @@ export class BattleArenaModal {
       this.player.freeze();
     }
 
-    // Ocultar controles virtuales durante el combate
+    // Ocultar controles virtuales y HUD del juego durante el combate
     if (this.scene.virtualControls) {
       this.scene.virtualControls.setVisible(false);
+    }
+    if (this.scene && typeof this.scene.setHUDVisible === 'function') {
+      this.scene.setHUDVisible(false);
     }
 
     // Sonido de ataque láser / alerta espacial
@@ -207,8 +210,8 @@ export class BattleArenaModal {
     const { width, height } = this.scene.scale;
     const baseDepth = 4000;
 
-    // 1. Telón de fondo cibernético translúcido (preserva el fondo del escenario visible sin pantalla negra)
-    const backdrop = this.scene.add.rectangle(0, 0, width, height, 0x060919, 0.45)
+    // 1. Telón de fondo cibernético translúcido de alta concentración (bloquea distracciones del mundo)
+    const backdrop = this.scene.add.rectangle(0, 0, width, height, 0x060919, 0.90)
       .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(baseDepth)
@@ -227,26 +230,26 @@ export class BattleArenaModal {
     this.track(grid);
 
     // =========================================================================
-    // 2. ESCENARIO DEL ENEMIGO (SUPERIOR DERECHA)
+    // 2. ESCENARIO DEL ENEMIGO (SUPERIOR DERECHA) - RESPONSIVO Y SEPARADO
     // =========================================================================
-    const botCenterX = width - 145;
-    const botCenterY = 120;
+    const botCenterX = width - Math.max(90, Math.floor(width * 0.12));
+    const botCenterY = 115;
 
     // Base de duelo para MatBot
-    const botPlatform = this.scene.add.ellipse(botCenterX, botCenterY + 45, 170, 36, 0x1e1b4b, 0.85)
+    const botPlatform = this.scene.add.ellipse(botCenterX, botCenterY + 40, 125, 26, 0x1e1b4b, 0.85)
       .setStrokeStyle(2, 0x6366f1, 0.95)
       .setScrollFactor(0)
       .setDepth(baseDepth + 2);
     this.track(botPlatform);
 
-    // Sprite de combate dinámico del enemigo (soporta MatBot, BrainBot, ParasiteBot, BosMat, etc.)
+    // Sprite de combate dinámico del enemigo (tamaño proporcionado y balanceado)
     const activeBotKey = this.currentBot?.texture?.key || (this.scene.textures.exists('matbot_texture') ? 'matbot_texture' : 'matbot');
     const isBotSheet = activeBotKey.includes('sheet') || activeBotKey === 'matbot' || activeBotKey === 'matbot_texture';
     const isFlying = activeBotKey === 'owlbot_texture' || activeBotKey === 'ajolotebot_texture';
-    let botScale = 0.82;
+    let botScale = 0.46;
     const botSprite = this.scene.add.sprite(
       botCenterX,
-      isFlying ? botCenterY : (botCenterY + 45),
+      isFlying ? botCenterY : (botCenterY + 40),
       activeBotKey,
       0
     )
@@ -255,24 +258,25 @@ export class BattleArenaModal {
       .setDepth(baseDepth + 3);
 
     if (activeBotKey === 'parasitebot_texture') {
-      botScale = 0.85;
+      botScale = 0.46;
       if (this.scene.anims.exists('parasitebot_crawl')) botSprite.play('parasitebot_crawl');
     } else if (activeBotKey === 'owlbot_texture') {
-      botScale = 0.82;
+      botScale = 0.48;
       if (this.scene.anims.exists('owlbot_fly')) botSprite.play('owlbot_fly');
     } else if (activeBotKey === 'ajolotebot_texture') {
-      botScale = 0.82;
+      botScale = 0.48;
       if (this.scene.anims.exists('ajolotebot_fly')) botSprite.play('ajolotebot_fly');
     } else if (activeBotKey === 'bosmat_texture') {
-      botScale = 0.95;
+      botScale = 0.58;
       if (this.scene.anims.exists('bosmat_idle')) botSprite.play('bosmat_idle');
     } else if (activeBotKey === 'caatbot_texture' || activeBotKey === 'warbot_texture' || activeBotKey === 'brainbot_texture' || activeBotKey === 'neurobot_texture' || activeBotKey === 'questbot_texture') {
-      botScale = 0.82;
+      botScale = 0.46;
       const animKey = `${this.currentBot?.botType || ''}_walk`;
       if (this.scene.anims.exists(animKey)) {
         botSprite.play(animKey);
       }
     } else if (isBotSheet) {
+      botScale = 0.70;
       if (this.scene.anims.exists('matbot_idle')) {
         botSprite.play('matbot_idle');
       } else if (this.scene.anims.exists('matbot_walk')) {
@@ -283,48 +287,52 @@ export class BattleArenaModal {
     this.track(botSprite);
     this.arenaBotSprite = botSprite;
 
-    // Caja de telemetría del enemigo
-    const botInfoX = width - 365;
-    const botInfoY = 38;
+    // Caja de telemetría del enemigo (con separación garantizada de 30px del sprite)
+    const botInfoW = Math.min(205, Math.floor(width * 0.28));
+    const botInfoH = 54;
+    const botInfoX = botCenterX - 75 - botInfoW;
+    const botInfoY = 28;
+
     const botInfoBox = this.scene.add.graphics().setScrollFactor(0).setDepth(baseDepth + 2);
     botInfoBox.fillStyle(0x0f172a, 0.95);
-    botInfoBox.fillRoundedRect(botInfoX, botInfoY, 210, 58, 6);
+    botInfoBox.fillRoundedRect(botInfoX, botInfoY, botInfoW, botInfoH, 6);
     botInfoBox.lineStyle(2, 0xef4444, 0.9);
-    botInfoBox.strokeRoundedRect(botInfoX, botInfoY, 210, 58, 6);
+    botInfoBox.strokeRoundedRect(botInfoX, botInfoY, botInfoW, botInfoH, 6);
     this.track(botInfoBox);
 
     const displayName = (this.currentBot?.botName || this.currentBot?.name || 'MATBOT').toUpperCase();
     const botTitle = (this.currentBot?.botTitle || 'GUARDIÁN COGNITIVO').toUpperCase();
 
-    const botName = this.scene.add.text(botInfoX + 10, botInfoY + 8, `👾 ${displayName}`, {
+    const botName = this.scene.add.text(botInfoX + 8, botInfoY + 6, `👾 ${displayName}`, {
       fontFamily: 'monospace',
-      fontSize: '9.5px',
+      fontSize: '9px',
       color: '#f87171',
       fontStyle: 'bold'
     }).setScrollFactor(0).setDepth(baseDepth + 3);
     this.track(botName);
 
-    const botHpBarBg = this.scene.add.rectangle(botInfoX + 10, botInfoY + 28, 190, 10, 0x334155).setOrigin(0).setScrollFactor(0).setDepth(baseDepth + 3);
+    const barW = botInfoW - 16;
+    const botHpBarBg = this.scene.add.rectangle(botInfoX + 8, botInfoY + 24, barW, 8, 0x334155).setOrigin(0).setScrollFactor(0).setDepth(baseDepth + 3);
     this.track(botHpBarBg);
 
-    this.botHpBar = this.scene.add.rectangle(botInfoX + 10, botInfoY + 28, 190, 10, 0xef4444).setOrigin(0).setScrollFactor(0).setDepth(baseDepth + 4);
+    this.botHpBar = this.scene.add.rectangle(botInfoX + 8, botInfoY + 24, barW, 8, 0xef4444).setOrigin(0).setScrollFactor(0).setDepth(baseDepth + 4);
     this.track(this.botHpBar);
 
-    const botLevel = this.scene.add.text(botInfoX + 10, botInfoY + 42, 'HP: 100%  •  POTENCIA COGNITIVA: 1.0', {
+    const botLevel = this.scene.add.text(botInfoX + 8, botInfoY + 38, 'HP: 100%  •  POTENCIA COGNITIVA: 1.0', {
       fontFamily: 'monospace',
-      fontSize: '8px',
+      fontSize: '7.5px',
       color: '#94a3b8'
     }).setScrollFactor(0).setDepth(baseDepth + 3);
     this.track(botLevel);
 
     // =========================================================================
-    // 3. ESCENARIO DEL JUGADOR (INFERIOR IZQUIERDA)
+    // 3. ESCENARIO DEL JUGADOR (INFERIOR IZQUIERDA) - RESPONSIVO Y SEPARADO
     // =========================================================================
-    const playerCenterX = 130;
-    const playerCenterY = 185;
+    const playerCenterX = Math.max(85, Math.floor(width * 0.12));
+    const playerCenterY = 175;
 
     // Base de duelo para el Cadete
-    const playerPlatform = this.scene.add.ellipse(playerCenterX, playerCenterY + 45, 170, 36, 0x064e3b, 0.85)
+    const playerPlatform = this.scene.add.ellipse(playerCenterX, playerCenterY + 40, 125, 26, 0x064e3b, 0.85)
       .setStrokeStyle(2, 0x10b981, 0.95)
       .setScrollFactor(0)
       .setDepth(baseDepth + 2);
@@ -333,7 +341,7 @@ export class BattleArenaModal {
     // Sprite del jugador (textura independiente player_texture)
     const playerTextureKey = this.scene.textures.exists('player_texture') ? 'player_texture' : 'player';
     const playerSprite = this.scene.add.sprite(playerCenterX, playerCenterY, playerTextureKey, 1)
-      .setScale(0.42)
+      .setScale(0.40)
       .setScrollFactor(0)
       .setDepth(baseDepth + 3);
     if (this.scene.anims.exists('player_idle')) {
@@ -343,26 +351,29 @@ export class BattleArenaModal {
     this.arenaPlayerSprite = playerSprite;
 
     // Caja de telemetría del Cadete
-    const playerInfoX = 230;
-    const playerInfoY = 155;
+    const playerInfoW = Math.min(220, Math.floor(width * 0.28));
+    const playerInfoH = 62;
+    const playerInfoX = playerCenterX + 65;
+    const playerInfoY = 145;
+
     const playerInfoBox = this.scene.add.graphics().setScrollFactor(0).setDepth(baseDepth + 2);
     playerInfoBox.fillStyle(0x0f172a, 0.95);
-    playerInfoBox.fillRoundedRect(playerInfoX, playerInfoY, 230, 68, 6);
+    playerInfoBox.fillRoundedRect(playerInfoX, playerInfoY, playerInfoW, playerInfoH, 6);
     playerInfoBox.lineStyle(2, 0x38bdf8, 0.9);
-    playerInfoBox.strokeRoundedRect(playerInfoX, playerInfoY, 230, 68, 6);
+    playerInfoBox.strokeRoundedRect(playerInfoX, playerInfoY, playerInfoW, playerInfoH, 6);
     this.track(playerInfoBox);
 
-    const playerName = this.scene.add.text(playerInfoX + 10, playerInfoY + 8, `⚡ CADETE: ${authService.getDisplayName().toUpperCase()}`, {
+    const playerName = this.scene.add.text(playerInfoX + 8, playerInfoY + 6, `⚡ CADETE: ${authService.getDisplayName().toUpperCase()}`, {
       fontFamily: 'monospace',
-      fontSize: '10px',
+      fontSize: '9.5px',
       color: '#38bdf8',
       fontStyle: 'bold'
     }).setScrollFactor(0).setDepth(baseDepth + 3);
     this.track(playerName);
 
-    const livesLabel = this.scene.add.text(playerInfoX + 10, playerInfoY + 26, 'BLINDAJE DE ENERGÍA:', {
+    const livesLabel = this.scene.add.text(playerInfoX + 8, playerInfoY + 22, 'BLINDAJE DE ENERGÍA:', {
       fontFamily: 'monospace',
-      fontSize: '9px',
+      fontSize: '8.5px',
       color: '#94a3b8'
     }).setScrollFactor(0).setDepth(baseDepth + 3);
     this.track(livesLabel);
@@ -372,10 +383,10 @@ export class BattleArenaModal {
     const maxLives = 5;
     const currentLives = (this.scene && typeof this.scene.lives === 'number') ? this.scene.lives : 5;
     for (let i = 0; i < maxLives; i++) {
-      const headX = playerInfoX + 18 + (i * 26);
-      const headY = playerInfoY + 50;
+      const headX = playerInfoX + 16 + (i * 24);
+      const headY = playerInfoY + 44;
       const head = this.scene.add.image(headX, headY, 'player_head')
-        .setDisplaySize(20, 20)
+        .setDisplaySize(18, 18)
         .setScrollFactor(0)
         .setDepth(baseDepth + 4);
 
@@ -595,9 +606,11 @@ export class BattleArenaModal {
         // Si el jugador se quedó sin vidas, terminar combate para pantalla de Game Over
         if (typeof this.scene.lives === 'number' && this.scene.lives <= 0) {
           this.isResolving = true;
+          const botRef = this.currentBot;
+          const challengeRef = this.currentChallenge;
           this.close();
           if (typeof this.onCombatResult === 'function') {
-            this.onCombatResult(false, this.currentChallenge, this.currentBot, {});
+            this.onCombatResult(false, challengeRef, botRef, {});
           }
           return;
         }
@@ -690,21 +703,25 @@ export class BattleArenaModal {
 
       // Finalizar tras breve retraso satisfactorio
       const endTimer = this.scene.time.delayedCall(850, () => {
+        const botRef = this.currentBot;
+        const challengeRef = this.currentChallenge;
         this.close();
         if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
           this.scene.updateHUDLevel();
         }
         if (typeof this.onCombatResult === 'function') {
-          this.onCombatResult(true, this.currentChallenge, this.currentBot, { isLevelUp, newLevel, prevLevel });
+          this.onCombatResult(true, challengeRef, botRef, { isLevelUp, newLevel, prevLevel });
         }
       });
       this.pendingTimers.push(endTimer);
 
     } catch (err) {
       console.error('[BattleArenaModal] Error inesperado en resolución de combate:', err);
+      const botRef = this.currentBot;
+      const challengeRef = this.currentChallenge;
       this.close();
       if (typeof this.onCombatResult === 'function') {
-        this.onCombatResult(false, this.currentChallenge, this.currentBot, {});
+        this.onCombatResult(false, challengeRef, botRef, {});
       }
     }
   }
@@ -769,9 +786,12 @@ export class BattleArenaModal {
       }
     }
 
-    // Restaurar visibilidad de controles virtuales móviles
+    // Restaurar visibilidad de controles virtuales móviles y HUD
     if (this.scene.virtualControls) {
       this.scene.virtualControls.setVisible(true);
+    }
+    if (this.scene && typeof this.scene.setHUDVisible === 'function') {
+      this.scene.setHUDVisible(true);
     }
   }
 
