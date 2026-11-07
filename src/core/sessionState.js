@@ -14,6 +14,22 @@ export const COMPETENCY_IDS = {
   STRATEGIC_MULTIDISCIPLINARY: 'strategic_multidisciplinary'
 };
 
+export const PLAYER_PALETTES = [
+  { id: 'classic_blue', name: 'Azul Cobalto (Original)', tint: 0xffffff, accentHex: '#38bdf8', secondaryHex: '#2563eb' },
+  { id: 'cyber_cyan', name: 'Cian Neón', tint: 0x38bdf8, accentHex: '#00f0ff', secondaryHex: '#0284c7' },
+  { id: 'matrix_emerald', name: 'Esmeralda Cuántico', tint: 0x34d399, accentHex: '#10b981', secondaryHex: '#059669' },
+  { id: 'plasma_ruby', name: 'Plasma Rubí', tint: 0xf43f5e, accentHex: '#fb7185', secondaryHex: '#be123c' },
+  { id: 'synth_violet', name: 'Sintetizador Violeta', tint: 0xa855f7, accentHex: '#c084fc', secondaryHex: '#7e22ce' },
+  { id: 'solar_amber', name: 'Ámbar Solar', tint: 0xf59e0b, accentHex: '#fbbf24', secondaryHex: '#d97706' }
+];
+
+export const MENU_BG_THEMES = [
+  { id: 'cyber_dark', name: 'Cyber Dark', bgColor: 0x070913, gridColor: 0x1e293b, starColor: 0x38bdf8 },
+  { id: 'synth_magenta', name: 'Synthwave', bgColor: 0x18051e, gridColor: 0x701a75, starColor: 0xf43f5e },
+  { id: 'deep_space', name: 'Espacio Profundo', bgColor: 0x03071e, gridColor: 0x1e3a8a, starColor: 0x60a5fa },
+  { id: 'matrix_green', name: 'Matrix Terminal', bgColor: 0x02150d, gridColor: 0x064e3b, starColor: 0x10b981 }
+];
+
 export const COMPETENCY_METADATA = {
   [COMPETENCY_IDS.LOGIC_MATH]: {
     id: COMPETENCY_IDS.LOGIC_MATH,
@@ -104,6 +120,14 @@ export const COMPETENCY_METADATA = {
 class SessionStateManager {
   constructor() {
     this.activeCompetency = COMPETENCY_IDS.LOGIC_MATH;
+    this.playerPaletteId = this.loadLocal('nq_player_palette') || 'classic_blue';
+    this.menuBgThemeId = this.loadLocal('nq_menu_theme') || 'cyber_dark';
+    this.trophies = this.loadLocalJson('nq_trophies') || {
+      [COMPETENCY_IDS.LOGIC_MATH]: false,
+      [COMPETENCY_IDS.COMPUTATIONAL_THINKING]: false,
+      [COMPETENCY_IDS.READING_COMPREHENSION]: false,
+      [COMPETENCY_IDS.STRATEGIC_MULTIDISCIPLINARY]: false
+    };
     this.competenciesState = {
       [COMPETENCY_IDS.LOGIC_MATH]: {
         unlocked: true,
@@ -134,6 +158,107 @@ class SessionStateManager {
         accuracy: 0
       }
     };
+  }
+
+  loadLocal(key) {
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  saveLocal(key, val) {
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(key, val);
+    } catch (e) {
+      console.warn('[SessionState] LocalStorage save error:', e);
+    }
+  }
+
+  loadLocalJson(key) {
+    try {
+      const data = this.loadLocal(key);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  saveLocalJson(key, val) {
+    try {
+      this.saveLocal(key, JSON.stringify(val));
+    } catch (e) {
+      console.warn('[SessionState] LocalStorage saveJson error:', e);
+    }
+  }
+
+  // --- Paleta del Personaje (Player Customization) ---
+  getPlayerPaletteId() {
+    return this.playerPaletteId;
+  }
+
+  getPlayerPalette() {
+    return PLAYER_PALETTES.find(p => p.id === this.playerPaletteId) || PLAYER_PALETTES[0];
+  }
+
+  setPlayerPalette(paletteId) {
+    const pal = PLAYER_PALETTES.find(p => p.id === paletteId);
+    if (pal) {
+      this.playerPaletteId = paletteId;
+      this.saveLocal('nq_player_palette', paletteId);
+      console.log(`[SessionState] Paleta del jugador cambiada a: ${pal.name}`);
+      return pal;
+    }
+    return null;
+  }
+
+  cyclePlayerPalette() {
+    const currentIndex = PLAYER_PALETTES.findIndex(p => p.id === this.playerPaletteId);
+    const nextIndex = (currentIndex + 1) % PLAYER_PALETTES.length;
+    return this.setPlayerPalette(PLAYER_PALETTES[nextIndex].id);
+  }
+
+  // --- Temas de Fondo de Interfaz ---
+  getMenuBgThemeId() {
+    return this.menuBgThemeId;
+  }
+
+  getMenuBgTheme() {
+    return MENU_BG_THEMES.find(t => t.id === this.menuBgThemeId) || MENU_BG_THEMES[0];
+  }
+
+  setMenuBgTheme(themeId) {
+    const theme = MENU_BG_THEMES.find(t => t.id === themeId);
+    if (theme) {
+      this.menuBgThemeId = themeId;
+      this.saveLocal('nq_menu_theme', themeId);
+      console.log(`[SessionState] Tema de menú cambiado a: ${theme.name}`);
+      return theme;
+    }
+    return null;
+  }
+
+  cycleMenuBgTheme() {
+    const currentIndex = MENU_BG_THEMES.findIndex(t => t.id === this.menuBgThemeId);
+    const nextIndex = (currentIndex + 1) % MENU_BG_THEMES.length;
+    return this.setMenuBgTheme(MENU_BG_THEMES[nextIndex].id);
+  }
+
+  // --- Sistema de Trofeos de Victoria ---
+  getTrophies() {
+    return { ...this.trophies };
+  }
+
+  hasTrophy(competencyId) {
+    return !!this.trophies[competencyId];
+  }
+
+  unlockTrophy(competencyId) {
+    this.trophies[competencyId] = true;
+    this.saveLocalJson('nq_trophies', this.trophies);
+    console.log(`[SessionState] 🏆 ¡Trofeo desbloqueado para ${competencyId}!`);
+    return true;
   }
 
   getActiveCompetency() {

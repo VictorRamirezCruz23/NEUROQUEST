@@ -29,16 +29,17 @@ export class ChallengeModal {
       if (!this.isOpen) return;
 
       const code = event.code;
+      // Retirada selección por teclado: Solo interacción por Clic / Táctil
       if (this.currentView === 'challenge') {
-        if (code === 'KeyA' || code === 'Digit1') this.submitAnswer(0);
-        else if (code === 'KeyB' || code === 'Digit2') this.submitAnswer(1);
-        else if (code === 'KeyC' || code === 'Digit3') this.submitAnswer(2);
-        else if (code === 'KeyD' || code === 'Digit4') this.submitAnswer(3);
-        else if (code === 'KeyH') this.triggerHint();
+        if (code === 'KeyH') this.triggerHint();
       } else if (this.currentView === 'feedback') {
         if (code === 'Enter' || code === 'Space') {
           if (this.currentOptions?.mode === 'combat' || this.currentOptions?.mode === 'recovery') {
-            this.close();
+            if (this.lastResult && this.lastResult.isCorrect) {
+              this.close();
+            } else {
+              this.renderChallengeView();
+            }
           } else if (this.lastResult && this.lastResult.isCorrect) {
             this.open();
           } else {

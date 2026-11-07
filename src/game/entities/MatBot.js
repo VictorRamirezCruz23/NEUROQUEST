@@ -65,6 +65,23 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
+   * Impacto de proyectil del jugador sobre MatBot.
+   * Se desestabiliza y retrocede.
+   */
+  takeProjectileDamage(projectile) {
+    if (!this.isAlive || this.state === 'DEAD' || this.state === 'COMBAT') return;
+
+    this.scene.soundManager?.playHit();
+    this.setTint(0xfde047);
+    this.scene.time.delayedCall(150, () => {
+      if (this.active && this.isAlive) this.clearTint();
+    });
+
+    const pushDir = projectile?.direction || (this.flipX ? 1 : -1);
+    this.setVelocityX(pushDir * 140);
+  }
+
+  /**
    * Bucle de actualización por fotograma del MatBot.
    */
   updateAI(time, delta, player) {
@@ -78,6 +95,13 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
 
     if (this.dialogCooldown > 0) {
       this.dialogCooldown -= delta;
+    }
+
+    // Salvaguarda física contra caída al vacío / fuera del mapa
+    if (this.y > 580 && this.isAlive) {
+      this.x = this.spawnX;
+      this.y = this.spawnY;
+      this.setVelocity(0, 0);
     }
 
     if (!player || !player.body) {
@@ -149,6 +173,16 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
 
   chasePlayer(player) {
     this.state = 'CHASE';
+
+    // No alejarse más allá del margen seguro de patrulla para no caer al abismo
+    const maxChaseDist = this.patrolRange + 95;
+    if (Math.abs(this.x - this.spawnX) > maxChaseDist) {
+      this.direction = this.x > this.spawnX ? -1 : 1;
+      this.setVelocityX(this.direction * this.patrolSpeed);
+      this.state = 'PATROL';
+      return;
+    }
+
     this.direction = player.x < this.x ? -1 : 1;
     this.setVelocityX(this.direction * this.chaseSpeed);
     this.setFlipX(this.direction < 0);
@@ -166,8 +200,29 @@ export class MatBot extends Phaser.Physics.Arcade.Sprite {
     this.direction = player.x < this.x ? -1 : 1;
     this.setFlipX(this.direction < 0);
 
-    // Disparar animación oficial de ataque
-    this.play('matbot_attack', true);
+    // Disparar animación oficial de ataque según tipo de enemigo o fallback seguro
+    if (this.scene.anims.exists('matbot_attack') && (this.texture.key === 'matbot' || this.texture.key === 'matbot_texture')) {
+      this.play('matbot_attack', true);
+    } else if (this.scene.anims.exists(`${this.botType}_attack`)) {
+      this.play(`${this.botType}_attack`, true);
+      this.once(`animationcomplete-${this.botType}_attack`, () => {
+        if (this.isAlive && this.state === 'ATTACKING') {
+          this.state = 'COMBAT';
+          if (typeof this.scene.startCombatDuel === 'function') {
+            this.scene.startCombatDuel(this);
+          }
+        }
+      });
+    } else {
+      this.scene.time.delayedCall(380, () => {
+        if (this.isAlive && this.state === 'ATTACKING') {
+          this.state = 'COMBAT';
+          if (typeof this.scene.startCombatDuel === 'function') {
+            this.scene.startCombatDuel(this);
+          }
+        }
+      });
+    }
 
     // Frase cómica al atacar
     const ataques = ["¡A calcular tu derrota!", "¡Calculadora en mano!", "¡Fallo en tu lógica!"];

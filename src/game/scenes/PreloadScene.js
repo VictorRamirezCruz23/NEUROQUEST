@@ -71,6 +71,48 @@ export class PreloadScene extends Phaser.Scene {
     this.load.image('bg_reading', '/assets/backgrounds/bg_reading.jpg');
     this.load.image('bg_strategic', '/assets/backgrounds/bg_strategic.jpg');
 
+    // Cargar pistas musicales oficiales
+    this.load.audio('music_menu', '/assets/audio/Menu.mp3');
+    this.load.audio('music_game', '/assets/audio/game.mp3');
+
+    // Cargar spritesheets oficiales transparentes y calibrados para pixel art (estándar 240x240 px)
+    this.load.spritesheet('ajolotebot_texture', '/assets/sprites/ajolotebot_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+    this.load.spritesheet('owlbot_texture', '/assets/sprites/owlbot_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+    this.load.spritesheet('parasitebot_texture', '/assets/sprites/parasitebot_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+    this.load.spritesheet('bosmat_texture', '/assets/sprites/bosmat_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+    this.load.spritesheet('caatbot_texture', '/assets/sprites/caatbot_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+    this.load.spritesheet('warbot_texture', '/assets/sprites/warbot_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+    this.load.spritesheet('brainbot_texture', '/assets/sprites/brainbot_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+    this.load.spritesheet('neurobot_texture', '/assets/sprites/neurobot_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+    this.load.spritesheet('questbot_texture', '/assets/sprites/questbot_sheet.png', {
+      frameWidth: 240,
+      frameHeight: 240
+    });
+
     // Generar texturas de respaldo procedurales para pixel art y mundo interactivo
     this.createProceduralAssets();
   }
@@ -188,6 +230,105 @@ export class PreloadScene extends Phaser.Scene {
       vGfx.generateTexture('victory_flag', 48, 80);
       vGfx.destroy();
     }
+
+    // 7. Proyectil de Energía Azul del Jugador (16x16)
+    if (!this.textures.exists('projectile_energy')) {
+      const pGfx = this.make.graphics({ x: 0, y: 0, add: false });
+      pGfx.fillStyle(0x38bdf8, 0.4);
+      pGfx.fillCircle(8, 8, 8);
+      pGfx.fillStyle(0x00f0ff, 0.85);
+      pGfx.fillCircle(8, 8, 5);
+      pGfx.fillStyle(0xffffff, 1);
+      pGfx.fillCircle(8, 8, 2.5);
+      pGfx.generateTexture('projectile_energy', 16, 16);
+      pGfx.destroy();
+    }
+
+    // 8. Obstáculo de Daño: Pinchos de Plasma Cibernéticos (32x24)
+    if (!this.textures.exists('spike_hazard')) {
+      const spkGfx = this.make.graphics({ x: 0, y: 0, add: false });
+      spkGfx.fillStyle(0x0f172a, 1);
+      spkGfx.fillRect(0, 20, 32, 4);
+      // Tres pinchos afilados
+      spkGfx.fillStyle(0xef4444, 0.95);
+      spkGfx.fillTriangle(0, 20, 5, 2, 10, 20);
+      spkGfx.fillTriangle(11, 20, 16, 2, 21, 20);
+      spkGfx.fillTriangle(22, 20, 27, 2, 32, 20);
+      // Núcleo de energía brillante
+      spkGfx.fillStyle(0xfca5a5, 1);
+      spkGfx.fillTriangle(3, 19, 5, 5, 7, 19);
+      spkGfx.fillTriangle(14, 19, 16, 5, 18, 19);
+      spkGfx.fillTriangle(25, 19, 27, 5, 29, 19);
+      spkGfx.generateTexture('spike_hazard', 32, 24);
+      spkGfx.destroy();
+    }
+
+    // 9. Parche de Corrupción de Plataforma (ParasiteBot) (40x12)
+    if (!this.textures.exists('corrupt_patch')) {
+      const cGfx = this.make.graphics({ x: 0, y: 0, add: false });
+      cGfx.fillStyle(0x701a75, 0.8);
+      cGfx.fillRect(0, 4, 40, 8);
+      cGfx.fillStyle(0xf43f5e, 0.9);
+      cGfx.fillRect(4, 2, 8, 8);
+      cGfx.fillRect(16, 0, 10, 10);
+      cGfx.fillRect(30, 2, 6, 8);
+      cGfx.fillStyle(0x38bdf8, 0.85);
+      cGfx.fillRect(2, 6, 4, 4);
+      cGfx.fillRect(20, 4, 4, 4);
+      cGfx.fillRect(34, 5, 3, 3);
+      cGfx.generateTexture('corrupt_patch', 40, 12);
+      cGfx.destroy();
+    }
+
+    // 10. Proyectil Fractal del Jefe BosMat (20x20)
+    if (!this.textures.exists('boss_projectile')) {
+      const bpGfx = this.make.graphics({ x: 0, y: 0, add: false });
+      bpGfx.fillStyle(0xa855f7, 0.5);
+      bpGfx.fillCircle(10, 10, 9);
+      bpGfx.fillStyle(0xf43f5e, 0.9);
+      bpGfx.fillCircle(10, 10, 6);
+      bpGfx.fillStyle(0xfde047, 1);
+      bpGfx.fillRect(8, 8, 4, 4);
+      bpGfx.generateTexture('boss_projectile', 20, 20);
+      bpGfx.destroy();
+    }
+
+    // 11. Trofeos de Victoria Conmemorativos (48x48)
+    const trophyThemes = [
+      { key: 'trophy_logic', color: 0x38bdf8, base: 0x0284c7 },
+      { key: 'trophy_computational', color: 0x10b981, base: 0x059669 },
+      { key: 'trophy_reading', color: 0xa855f7, base: 0x7e22ce },
+      { key: 'trophy_strategic', color: 0xf59e0b, base: 0xd97706 }
+    ];
+
+    trophyThemes.forEach(t => {
+      if (!this.textures.exists(t.key)) {
+        const tg = this.make.graphics({ x: 0, y: 0, add: false });
+        // Pedestal
+        tg.fillStyle(0x0f172a, 1);
+        tg.fillRect(10, 38, 28, 8);
+        tg.fillStyle(t.base, 1);
+        tg.fillRect(14, 34, 20, 4);
+        // Tallo
+        tg.fillStyle(0xfbbf24, 1);
+        tg.fillRect(22, 26, 4, 8);
+        // Copa
+        tg.fillStyle(0xfbbf24, 1);
+        tg.fillCircle(24, 18, 11);
+        tg.fillStyle(t.color, 1);
+        tg.fillCircle(24, 17, 8);
+        // Asas
+        tg.lineStyle(2, 0xfbbf24, 1);
+        tg.strokeCircle(14, 18, 4);
+        tg.strokeCircle(34, 18, 4);
+        // Estrella en relieve
+        tg.fillStyle(0xffffff, 1);
+        tg.fillRect(23, 14, 2, 6);
+        tg.fillRect(21, 16, 6, 2);
+        tg.generateTexture(t.key, 48, 48);
+        tg.destroy();
+      }
+    });
   }
 
   create() {
@@ -393,6 +534,96 @@ export class PreloadScene extends Phaser.Scene {
         frameRate: 9,
         repeat: 0
       });
+    }
+
+    // 6. OwlBot Vuelo (Frames 0 a 7 de la fila 0)
+    if (this.textures.exists('owlbot_texture') && !this.anims.exists('owlbot_fly')) {
+      this.anims.create({
+        key: 'owlbot_fly',
+        frames: this.anims.generateFrameNumbers('owlbot_texture', { start: 0, end: 7 }),
+        frameRate: 8,
+        repeat: -1
+      });
+    }
+
+    // 7. AjoloteBot Vuelo (Frames 0 a 7 de la fila 0)
+    if (this.textures.exists('ajolotebot_texture') && !this.anims.exists('ajolotebot_fly')) {
+      this.anims.create({
+        key: 'ajolotebot_fly',
+        frames: this.anims.generateFrameNumbers('ajolotebot_texture', { start: 0, end: 7 }),
+        frameRate: 8,
+        repeat: -1
+      });
+    }
+
+    // Animaciones para bots terrestres modulares de 8 frames
+    const groundBots = ['brainbot', 'caatbot', 'warbot', 'neurobot', 'questbot'];
+    groundBots.forEach(bot => {
+      const tex = `${bot}_texture`;
+      const walkKey = `${bot}_walk`;
+      if (this.textures.exists(tex) && !this.anims.exists(walkKey)) {
+        this.anims.create({
+          key: walkKey,
+          frames: this.anims.generateFrameNumbers(tex, { start: 0, end: 7 }),
+          frameRate: 8,
+          repeat: -1
+        });
+      }
+    });
+
+    // 8. ParasiteBot Crawl (Frames 0 a 7 de la fila 0)
+    if (this.textures.exists('parasitebot_texture')) {
+      if (!this.anims.exists('parasitebot_crawl')) {
+        this.anims.create({
+          key: 'parasitebot_crawl',
+          frames: this.anims.generateFrameNumbers('parasitebot_texture', { start: 0, end: 7 }),
+          frameRate: 9,
+          repeat: -1
+        });
+      }
+      if (!this.anims.exists('parasitebot_idle')) {
+        this.anims.create({
+          key: 'parasitebot_idle',
+          frames: [{ key: 'parasitebot_texture', frame: 0 }],
+          frameRate: 1
+        });
+      }
+      if (!this.anims.exists('parasitebot_attack')) {
+        this.anims.create({
+          key: 'parasitebot_attack',
+          frames: this.anims.generateFrameNumbers('parasitebot_texture', { start: 0, end: 7 }),
+          frameRate: 10,
+          repeat: 0
+        });
+      }
+      if (!this.anims.exists('parasitebot_die')) {
+        this.anims.create({
+          key: 'parasitebot_die',
+          frames: this.anims.generateFrameNumbers('parasitebot_texture', { start: 0, end: 7 }),
+          frameRate: 9,
+          repeat: 0
+        });
+      }
+    }
+
+    // 9. BosMat Jefe (Idle y Ataque)
+    if (this.textures.exists('bosmat_texture')) {
+      if (!this.anims.exists('bosmat_idle')) {
+        this.anims.create({
+          key: 'bosmat_idle',
+          frames: this.anims.generateFrameNumbers('bosmat_texture', { start: 0, end: 7 }),
+          frameRate: 6,
+          repeat: -1
+        });
+      }
+      if (!this.anims.exists('bosmat_attack')) {
+        this.anims.create({
+          key: 'bosmat_attack',
+          frames: this.anims.generateFrameNumbers('bosmat_texture', { start: 0, end: 7 }),
+          frameRate: 10,
+          repeat: 0
+        });
+      }
     }
   }
 }

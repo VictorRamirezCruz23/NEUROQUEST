@@ -84,11 +84,57 @@ export class SoundManager {
         this.scene.cache.audio.add('sfx_ambient_drone', droneBuffer);
       }
 
+      // 7. SFX Clic de interfaz futurista (0.05s)
+      if (!this.scene.cache.audio.exists('sfx_click')) {
+        const clickBuffer = this.createClickBuffer(ctx, sampleRate);
+        this.scene.cache.audio.add('sfx_click', clickBuffer);
+      }
+
+      // 8. SFX Explosión robótica / Destrucción (0.65s)
+      if (!this.scene.cache.audio.exists('sfx_explosion')) {
+        const explosionBuffer = this.createExplosionBuffer(ctx, sampleRate);
+        this.scene.cache.audio.add('sfx_explosion', explosionBuffer);
+      }
+
       this.initialized = true;
       console.log('[SoundManager] Sintetizador de audio espacial inicializado exitosamente.');
     } catch (err) {
       console.warn('[SoundManager] Error al generar buffers de audio:', err);
     }
+  }
+
+  createClickBuffer(ctx, sampleRate) {
+    const duration = 0.045;
+    const totalSamples = Math.floor(sampleRate * duration);
+    const buffer = ctx.createBuffer(1, totalSamples, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < totalSamples; i++) {
+      const t = i / sampleRate;
+      const progress = i / totalSamples;
+      const freq = 1600 * Math.exp(-t * 70) + 400;
+      const env = Math.pow(1 - progress, 3.0);
+      const wave = Math.sin(2 * Math.PI * freq * t);
+      data[i] = Math.max(-1, Math.min(1, wave * env * 0.7));
+    }
+    return buffer;
+  }
+
+  createExplosionBuffer(ctx, sampleRate) {
+    const duration = 0.65;
+    const totalSamples = Math.floor(sampleRate * duration);
+    const buffer = ctx.createBuffer(1, totalSamples, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < totalSamples; i++) {
+      const t = i / sampleRate;
+      const progress = i / totalSamples;
+      const env = Math.pow(1 - progress, 2.2);
+      const bass = Math.sin(2 * Math.PI * (140 * Math.exp(-t * 9.0) + 32) * t) * 0.7;
+      const noise = (Math.random() * 2 - 1) * 0.45;
+      data[i] = Math.max(-1, Math.min(1, (bass + noise) * env * 0.9));
+    }
+    return buffer;
   }
 
   createLaserBuffer(ctx, sampleRate) {
@@ -233,6 +279,76 @@ export class SoundManager {
   }
 
   /**
+   * Reproduce el sonido de clic de interfaz.
+   */
+  playClick() {
+    this.safePlay('sfx_click', { volume: 0.55 });
+  }
+
+  /**
+   * Reproduce el sonido de explosión robótica.
+   */
+  playExplosion() {
+    this.safePlay('sfx_explosion', { volume: 0.85 });
+  }
+
+  /**
+   * Reproduce la música de los menús (Menu.mp3) en bucle continuo.
+   */
+  playMenuMusic(volume = 0.4) {
+    SoundManager.playGlobalMusic(this.scene, 'music_menu', { loop: true, volume });
+  }
+
+  /**
+   * Reproduce la música de gameplay (game.mp3) en bucle continuo.
+   */
+  playGameMusic(volume = 0.45) {
+    SoundManager.playGlobalMusic(this.scene, 'music_game', { loop: true, volume });
+  }
+
+  /**
+   * Detiene la música de fondo activa.
+   */
+  static stopGlobalMusic() {
+    if (SoundManager.currentMusic) {
+      try {
+        SoundManager.currentMusic.stop();
+        SoundManager.currentMusic.destroy();
+      } catch (e) {}
+      SoundManager.currentMusic = null;
+      SoundManager.currentMusicKey = null;
+    }
+  }
+
+  /**
+   * Coordinador estático de música para evitar reinicios bruscos o duplicaciones entre escenas.
+   */
+  static playGlobalMusic(scene, key, config = { loop: true, volume: 0.4 }) {
+    if (SoundManager.currentMusicKey === key && SoundManager.currentMusic && SoundManager.currentMusic.isPlaying) {
+      return;
+    }
+
+    SoundManager.stopGlobalMusic();
+
+    try {
+      if (scene.sound?.context?.state === 'suspended') {
+        scene.sound.context.resume().catch(() => {});
+      }
+
+      if (scene.cache.audio.exists(key)) {
+        SoundManager.currentMusic = scene.sound.add(key, config);
+        SoundManager.currentMusic.play();
+        SoundManager.currentMusicKey = key;
+        console.log(`[SoundManager] Reproduciendo música de fondo: ${key}`);
+      } else {
+        console.warn(`[SoundManager] Pista de audio '${key}' aún no está cargada en caché.`);
+      }
+    } catch (err) {
+      console.warn(`[SoundManager] No se pudo iniciar pista ${key}:`, err);
+    }
+  }
+
+  /**
    * Reproduce el sonido de láser / disparo de combate.
    */
   playLaser() {
@@ -322,3 +438,6 @@ export class SoundManager {
     this.stopAmbientDrone();
   }
 }
+
+SoundManager.currentMusic = null;
+SoundManager.currentMusicKey = null;

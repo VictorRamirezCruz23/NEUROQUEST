@@ -57,7 +57,7 @@ export const COMPETENCY_THEORY = {
     sections: [
       {
         subtitle: 'Estrategia de Razonamiento',
-        content: '• Lee con atención el enunciado del desafío antes de pulsar una respuesta.\n• Elimina de inmediato las opciones contradictorias o numéricamente imposibles.\n• Recuerda que mantener una precisión mínima del 80% es el requisito indispensable para superar el sector.'
+        content: '• Lee con atención el enunciado del desafío antes de seleccionar tu respuesta con el ratón o toque táctil.\n• Elimina de inmediato las opciones contradictorias o numéricamente imposibles.\n• Supera cada obstáculo y reto táctico para avanzar fluidamente hacia la meta del sector.'
       }
     ]
   }

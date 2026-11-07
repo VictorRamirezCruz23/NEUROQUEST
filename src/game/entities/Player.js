@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
+import { sessionState } from '../../core/sessionState.js';
+import { EnergyProjectile } from './EnergyProjectile.js';
 
 /**
  * Player.js — Entidad principal del jugador en NEUROQUEST.
- * Incluye físicas mejoradas, Coyote Time, Jump Buffer, inercia y control híbrido.
+ * Incluye físicas mejoradas, Coyote Time, Jump Buffer, disparo de proyectiles de energía,
+ * personalización de paleta y control híbrido.
  */
 export class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
@@ -24,6 +27,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.isLocked = false;
     this.isAttacking = false;
     this.isCrouching = false;
+    this.lastShootTime = 0;
+    this.shootCooldown = 260; // ms entre disparos
 
     // Variables para Coyote Time y Jump Buffer
     this.coyoteTimer = 0;
@@ -34,6 +39,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.virtualInput = {
       left: false, right: false, running: false, jump: false, punch: false, crouch: false
     };
+
+    // Aplicar paleta de color personalizada
+    this.applyPalette();
 
     // Controles de teclado
     this.cursors = scene.input.keyboard.createCursorKeys();
@@ -52,6 +60,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.on('animationcomplete-player_punch', () => this.finishAttack());
     this.on('animationcomplete-player_attack', () => this.finishAttack());
+  }
+
+  applyPalette() {
+    const pal = sessionState.getPlayerPalette();
+    if (pal && pal.tint) {
+      this.setTint(pal.tint);
+    } else {
+      this.clearTint();
+    }
+  }
+
+  updatePalette() {
+    this.applyPalette();
   }
 
   update(time, delta) {
@@ -76,25 +97,33 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
                             this.virtualInput.jump;
 
     if (jumpRequestedRaw) {
+      if (this.isCrouching) {
+        this.isCrouching = false;
+        this.body.setSize(80, 240);
+        this.body.setOffset(60, 80);
+      }
       this.jumpBufferTimer = this.jumpBufferDuration;
       this.virtualInput.jump = false;
     } else if (this.jumpBufferTimer > 0) {
       this.jumpBufferTimer -= delta;
     }
 
-    // Acción de Agacharse
-    const crouchRequested = (this.cursors.down.isDown || this.keyS.isDown || this.virtualInput.crouch) && onFloor;
+    // Acción de Agacharse (Permite caminar agachado fluidamente con S o Flecha Abajo)
+    const crouchRequested = (this.cursors.down.isDown || this.keyS.isDown || this.virtualInput.crouch) && (onFloor || this.isCrouching);
 
     if (crouchRequested) {
       if (!this.isCrouching) {
         this.isCrouching = true;
+        // Reducir la caja de colisión exactamente a la mitad de altura (120 px)
+        // Offset Y = 200 para que la base permanezca perfectamente apoyada sobre el suelo
         this.body.setSize(80, 120);
         this.body.setOffset(60, 200);
       }
 
+      // Desplazamiento horizontal fluido mientras se camina agachado (Crouch Walk)
       const moveLeft = (this.cursors.left.isDown || this.keyA.isDown || this.virtualInput.left);
       const moveRight = (this.cursors.right.isDown || this.keyD.isDown || this.virtualInput.right);
-      const crouchSpeed = Math.round(this.speed * 0.60);
+      const crouchSpeed = Math.round(this.speed * 0.65);
 
       if (moveLeft && !moveRight) {
         this.setVelocityX(-crouchSpeed);
@@ -106,6 +135,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         this.setVelocityX(0);
       }
 
+      // Conmutar fluidamente entre caminar agachado (player_crouch_walk) y agachado estático (player_crouch)
       const isCrouchMoving = Math.abs(this.body.velocity.x) > 5;
       const targetCrouchAnim = isCrouchMoving ? 'player_crouch_walk' : 'player_crouch';
       if (this.anims.currentAnim?.key !== targetCrouchAnim) {
@@ -115,8 +145,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     } else {
       if (this.isCrouching) {
         this.isCrouching = false;
+        // Restaurar caja de colisión normal completa de pie (240 px de alto)
         this.body.setSize(80, 240);
         this.body.setOffset(60, 80);
+
+        // Transición inmediata al incorporarse
+        const isMoving = Math.abs(this.body.velocity.x) > 10;
+        if (isMoving) {
+          const isRunning = (this.keyShift.isDown || this.virtualInput.running);
+          this.play(isRunning ? 'player_run' : 'player_walk', true);
+        } else {
+          this.play('player_idle', true);
+        }
       }
     }
 
@@ -196,7 +236,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   performAttack() {
-    if (this.isAttacking) return;
+    this.shoot();
+  }
+
+  /**
+   * Dispara una bolita de energía azul en la dirección que mira el jugador.
+   */
+  shoot() {
+    if (this.isLocked) return;
+
+    const now = Date.now();
+    if (now - this.lastShootTime < this.shootCooldown) return;
+    this.lastShootTime = now;
+
     this.isAttacking = true;
 
     if (this.scene.soundManager && typeof this.scene.soundManager.playLaser === 'function') {
@@ -204,10 +256,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     const key = this.scene.anims.exists('player_attack') ? 'player_attack' : 'player_punch';
-    this.play(key, true);
+    if (this.scene.anims.exists(key)) {
+      this.play(key, true);
+    }
+
+    // Instanciar proyectil de energía azul
+    const dir = this.flipX ? -1 : 1;
+    const spawnX = this.x + (dir * 28);
+    const spawnY = this.y - 8;
+    const proj = new EnergyProjectile(this.scene, spawnX, spawnY, dir);
+
+    if (this.scene.playerProjectiles) {
+      this.scene.playerProjectiles.add(proj);
+    }
 
     if (this.attackSafetyTimer) this.attackSafetyTimer.remove();
-    this.attackSafetyTimer = this.scene.time.delayedCall(450, () => {
+    this.attackSafetyTimer = this.scene.time.delayedCall(320, () => {
       if (this.isAttacking) this.finishAttack();
     });
   }

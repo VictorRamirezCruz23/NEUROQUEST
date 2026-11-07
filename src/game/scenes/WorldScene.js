@@ -1,13 +1,18 @@
 import Phaser from 'phaser';
 import { Player } from '../entities/Player.js';
 import { MatBot } from '../entities/MatBot.js';
+import { EnemyBot } from '../entities/EnemyBot.js';
+import { FlyingBot } from '../entities/FlyingBot.js';
+import { ParasiteBot } from '../entities/ParasiteBot.js';
+import { BosMat } from '../entities/BosMat.js';
 import { LevelGenerator, NEON_THEMES } from '../procedural/LevelGenerator.js';
-import { sessionState } from '../../core/sessionState.js';
+import { sessionState, COMPETENCY_IDS } from '../../core/sessionState.js';
 import { DeviceDetector } from '../../utils/deviceDetector.js';
 import { VirtualControls } from '../../ui/components/VirtualControls.js';
 import { ChallengeModal } from '../../ui/components/ChallengeModal.js';
 import { BattleArenaModal } from '../../ui/components/BattleArenaModal.js';
 import { TheoryConsoleModal } from '../../ui/components/TheoryConsoleModal.js';
+import { TrophyModal } from '../../ui/components/TrophyModal.js';
 import { SoundManager } from '../audio/SoundManager.js';
 import { educationEngine } from '../../education/engines/EducationEngine.js';
 import { DiagnosticManager } from '../../education/assessments/DiagnosticManager.js';
@@ -24,7 +29,7 @@ import { ChallengeRepository } from '../../education/repositories/ChallengeRepos
  * 2. Enemigo MatBot con animaciones limpias y combate retro estilo Pokémon.
  * 3. HUD gráfico personalizado con cabezas de jugador (5 vidas) y spawn condicional (vidas <= 3).
  * 4. Consolas interactivas de teoría y pistas conceptuales.
- * 5. Infinitud de mapa basada en el requisito estricto del 80% de precisión mínima.
+ * 5. Progresión fluida por tramos y mundos superando desafíos y obstáculos sin bloqueos de 80%.
  * 6. Acción física de agacharse (crouch) y controles táctiles avanzados.
  */
 export class WorldScene extends Phaser.Scene {
@@ -47,7 +52,7 @@ export class WorldScene extends Phaser.Scene {
     this.enemiesDefeated = (data && typeof data.enemiesDefeated === 'number') ? data.enemiesDefeated : 0;
     this.sectorNumber = (data && typeof data.sectorNumber === 'number') ? data.sectorNumber : 1;
 
-    // Métricas de combate y precisión del sector (Meta: Mínimo 80%)
+    // Métricas de combate y precisión del sector
     this.combatTotalQuestions = (data && typeof data.combatTotalQuestions === 'number') ? data.combatTotalQuestions : 0;
     this.combatCorrectAnswers = (data && typeof data.combatCorrectAnswers === 'number') ? data.combatCorrectAnswers : 0;
     this.themeIndex = (data && typeof data.themeIndex === 'number') ? data.themeIndex : 0;
@@ -73,25 +78,108 @@ export class WorldScene extends Phaser.Scene {
     // 1. Límites físicos del mundo
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
-    // 1b. Gestor de audio espacial procedural y ambiental
+    // 1b. Gestor de audio espacial procedural y bucle de gameplay
     this.soundManager = new SoundManager(this);
     this.soundManager.startAmbientDrone();
+    this.soundManager.playGameMusic();
 
-    // 2. Fondo ambiental con parallax infinito (sin pantallas negras)
+    // 2. Fondo ambiental con parallax infinito
     this.createAtmosphere(worldWidth, worldHeight);
 
-    // 3. Generación procedural aleatoria de geometría, enemigos, ítems y meta
+    // 3. Generación procedural estructurada estilo Mario 3 (plataformas, vacíos, pinchos y bots)
     this.buildProceduralLevel(worldWidth, worldHeight);
 
     // 4. Instanciar al jugador (Cadete)
     this.player = new Player(this, 120, 360);
+    this.lastSafeX = 120;
 
     // 5. Configurar colisiones del jugador con el entorno
     this.physics.add.collider(this.player, this.platforms);
+    if (this.movingPlatforms) {
+      this.physics.add.collider(this.player, this.movingPlatforms);
+    }
 
-    // 6. Configurar colisiones de los MatBots con las plataformas
+    // 6. Configurar colisiones de enemigos terrestres y parásitos con las plataformas
     if (this.matbotGroup) {
       this.physics.add.collider(this.matbotGroup, this.platforms);
+      if (this.movingPlatforms) {
+        this.physics.add.collider(this.matbotGroup, this.movingPlatforms);
+      }
+    }
+
+    // Colisión de enemigos voladores con plataformas (evita penetración de suelo o caída al vacío)
+    if (this.flyingGroup) {
+      this.physics.add.collider(this.flyingGroup, this.platforms);
+    }
+
+    // Colisión del jefe con el suelo
+    if (this.boss) {
+      this.physics.add.collider(this.boss, this.platforms);
+    }
+
+    // 6b. Colisiones de Proyectiles de Energía Azul del Jugador
+    if (this.playerProjectiles) {
+      this.physics.add.collider(this.playerProjectiles, this.platforms, (proj) => {
+        if (proj && proj.explode) proj.explode(false);
+      });
+
+      if (this.flyingGroup) {
+        this.physics.add.overlap(this.playerProjectiles, this.flyingGroup, (proj, fbot) => {
+          if (proj && proj.explode) proj.explode(true);
+          if (fbot && fbot.takeProjectileDamage) fbot.takeProjectileDamage(proj);
+        });
+      }
+
+      if (this.matbotGroup) {
+        this.physics.add.overlap(this.playerProjectiles, this.matbotGroup, (proj, gbot) => {
+          if (proj && proj.explode) proj.explode(true);
+          if (gbot && gbot.takeProjectileDamage) gbot.takeProjectileDamage(proj);
+        });
+      }
+
+      if (this.boss) {
+        this.physics.add.overlap(this.playerProjectiles, this.boss, (proj, boss) => {
+          if (proj && proj.explode) proj.explode(true);
+          if (boss && boss.takeProjectileDamage) boss.takeProjectileDamage(proj);
+        });
+      }
+    }
+
+    // 6c. Contacto y combate táctico con enemigos terrestres (MatBot, BrainBot, ParasiteBot, etc.)
+    if (this.matbotGroup) {
+      this.physics.add.overlap(this.player, this.matbotGroup, (player, bot) => {
+        if (this.isInvulnerable || this.isGameOver || this.isVictory || !bot.isAlive) return;
+        if (this.battleArena && this.battleArena.isOpen) return;
+
+        // Reducir estrictamente 1 vida y aplicar invulnerabilidad temporal (i-frames: 1.8s)
+        this.damagePlayer(1, bot);
+        if (bot.setVelocityX) bot.setVelocityX(0);
+
+        // Activar combate táctico de preguntas sin restar vidas extra
+        this.startCombatDuel(bot);
+      });
+    }
+
+    // 6d. Daño por colisión con enemigos voladores (FlyingBot: OwlBot / AjoloteBot)
+    if (this.flyingGroup) {
+      this.physics.add.overlap(this.player, this.flyingGroup, (player, fbot) => {
+        if (this.isInvulnerable || this.isGameOver || this.isVictory || !fbot.isAlive) return;
+        this.damagePlayer(1, fbot);
+        const pushDir = player.x < fbot.x ? -1 : 1;
+        player.setVelocity(pushDir * 240, -220);
+        if (fbot && fbot.setVelocityX) {
+          fbot.setVelocityX(pushDir * -160);
+        }
+      });
+    }
+
+    // 6e. Daño por contacto con pinchos y trampas de plasma (Hazards)
+    if (this.hazardsGroup) {
+      this.physics.add.overlap(this.player, this.hazardsGroup, (player, hazard) => {
+        if (this.isInvulnerable || this.isGameOver || this.isVictory) return;
+        this.damagePlayer(1, hazard);
+        player.setVelocityY(-280);
+      });
     }
 
     // 7. Colisión / Recogida de Ítems de Recuperación de Vida
@@ -112,8 +200,10 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
 
-    // 10. HUD de estado (Identidad, Nivel, Vidas con cabezas del jugador, Precisión 80%)
+    // 10. HUD de estado y viñeta de alerta roja crítica
     this.createHUD();
+    this.createCriticalHealthVignette();
+    this.trophyModal = new TrophyModal(this);
 
     // 11. Modal interactivo de preguntas y desafíos
     this.challengeModal = new ChallengeModal(this, this.player);
@@ -237,19 +327,21 @@ export class WorldScene extends Phaser.Scene {
    * Genera el mapa procedimental garantizando diversidad estructural, ruta viable y entidades.
    */
   buildProceduralLevel(worldWidth, worldHeight) {
-    const levelData = LevelGenerator.generateLevel({
-      worldWidth,
-      worldHeight,
+    const isBoss = (this.sectorNumber >= 3 && this.meta.id === COMPETENCY_IDS.LOGIC_MATH);
+    const levelData = LevelGenerator.generateChunk({
+      startX: 0,
+      length: worldWidth,
       groundY: 430,
       playerLives: this.lives,
       themeIndex: this.themeIndex,
-      lastArchetypeId: this.lastArchetypeId
+      lastArchetypeId: this.lastArchetypeId,
+      isBossSector: isBoss
     });
 
     this.lastArchetypeId = levelData.lastArchetypeId;
     this.activeTheme = levelData.theme || NEON_THEMES[0];
 
-    // 1. Plataformas físicas estáticas (el suelo añadido es invisible para preservar el piso original)
+    // 1. Plataformas físicas estáticas
     this.platforms = this.physics.add.staticGroup();
     levelData.platforms.forEach(p => {
       const tile = this.platforms.create(p.x, p.y, p.texture);
@@ -261,7 +353,52 @@ export class WorldScene extends Phaser.Scene {
       tile.refreshBody();
     });
 
-    // 2. Terminales interactivas
+    // 1b. Plataformas Móviles Cinéticas
+    this.movingPlatforms = this.physics.add.group({ allowGravity: false, immovable: true });
+    if (levelData.movingPlatforms) {
+      levelData.movingPlatforms.forEach(mp => {
+        const plat = this.physics.add.image(mp.x, mp.y, 'tile_platform');
+        plat.setImmovable(true);
+        if (plat.body) plat.body.allowGravity = false;
+        if (mp.theme?.primary) plat.setTint(mp.theme.primary);
+        plat.setScale(2.8, 0.9);
+        plat.refreshBody();
+        this.movingPlatforms.add(plat);
+
+        const tweenConfig = {
+          targets: plat,
+          duration: mp.duration || 2400,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+          onUpdate: () => {
+            if (plat.body) plat.body.updateFromGameObject();
+          }
+        };
+
+        if (mp.axis === 'vertical') {
+          tweenConfig.y = mp.y - (mp.distance || 80);
+        } else {
+          tweenConfig.x = mp.x + (mp.distance || 130);
+        }
+
+        this.tweens.add(tweenConfig);
+      });
+    }
+
+    // 2. Obstáculos y Pinchos de Daño (Hazards)
+    this.hazardsGroup = this.physics.add.staticGroup();
+    if (levelData.hazards) {
+      levelData.hazards.forEach(h => {
+        const spk = this.hazardsGroup.create(h.x, h.y, 'spike_hazard');
+        spk.refreshBody();
+      });
+    }
+
+    // 3. Proyectiles del jugador
+    this.playerProjectiles = this.physics.add.group({ runChildUpdate: true });
+
+    // 4. Terminales interactivas
     this.terminals = this.physics.add.staticGroup();
     levelData.terminals.forEach(t => {
       const term = this.terminals.create(t.x, t.y, 'terminal_device');
@@ -291,17 +428,45 @@ export class WorldScene extends Phaser.Scene {
 
     this.keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
 
-    // 3. Enemigos robóticos MatBot
+    // 5. Enemigos robóticos terrestres (MatBot, BrainBot, CaatBot, etc.)
     this.matbotGroup = this.physics.add.group();
     this.matbots = [];
 
     levelData.matbots.forEach(m => {
-      const bot = new MatBot(this, m.x, m.y, { patrolRange: m.patrolRange });
+      const bot = new EnemyBot(this, m.x, m.y, { patrolRange: m.patrolRange, botType: m.botType || 'matbot' });
       this.matbotGroup.add(bot);
       this.matbots.push(bot);
     });
 
-    // 4. Ítems coleccionables de Recuperación de Vida (Condicionales a vidas <= 3)
+    // 6. ParasiteBots (Synapse Crawlers)
+    this.parasiteGroup = this.physics.add.group();
+    if (levelData.parasiteBots) {
+      levelData.parasiteBots.forEach(pb => {
+        const pbot = new ParasiteBot(this, pb.x, pb.y, { patrolRange: pb.patrolRange });
+        this.matbotGroup.add(pbot);
+        this.parasiteGroup.add(pbot);
+        this.matbots.push(pbot);
+      });
+    }
+
+    // 7. Enemigos Voladores (OwlBot y AjoloteBot)
+    this.flyingGroup = this.physics.add.group({ runChildUpdate: true });
+    this.flyingBots = [];
+    if (levelData.flyingBots) {
+      levelData.flyingBots.forEach(fb => {
+        const fbot = new FlyingBot(this, fb.x, fb.y, { type: fb.type, patrolRange: fb.patrolRange });
+        this.flyingGroup.add(fbot);
+        this.flyingBots.push(fbot);
+      });
+    }
+
+    // 8. Jefe BosMat si es el sector del boss
+    this.boss = null;
+    if (levelData.bossData) {
+      this.boss = new BosMat(this, levelData.bossData.x, levelData.bossData.y);
+    }
+
+    // 9. Ítems coleccionables de Recuperación de Vida
     this.healthItemGroup = this.physics.add.staticGroup();
     levelData.healthItems.forEach(h => {
       const item = this.healthItemGroup.create(h.x, h.y, 'item_health');
@@ -317,7 +482,7 @@ export class WorldScene extends Phaser.Scene {
       });
     });
 
-    // 5. Meta Final Clara de Victoria (Bandera / Baliza)
+    // 10. Meta Final de Victoria
     this.victoryGoal = this.physics.add.staticSprite(levelData.victoryGoal.x, levelData.victoryGoal.y, 'victory_flag');
     this.victoryGoal.refreshBody();
 
@@ -496,17 +661,41 @@ export class WorldScene extends Phaser.Scene {
       this.lifeHeadIcons.push(icon);
     }
 
-    // Indicador de Precisión en Combate (Mínimo 80% para desbloquear la victoria)
-    this.accuracyDisplay = this.add.text(width / 2, 74, '🎯 PRECISIÓN: --% (MÍNIMO 80%)', {
+    // Indicador de Precisión en Combate
+    this.accuracyDisplay = this.add.text(width / 2, 74, '🎯 PRECISIÓN: 100% [0/0]', {
       fontFamily: 'monospace',
       fontSize: '10px',
-      color: '#fbbf24',
+      color: '#38bdf8',
       fontStyle: 'bold',
       backgroundColor: 'rgba(15, 23, 42, 0.92)',
       padding: { x: 8, y: 3 }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(baseDepth + 2);
 
     this.updateLivesHUD();
+
+    // Botón Pantalla Completa (Responsive / Fullscreen)
+    const fsBtn = this.add.text(width - 24, 76, '⛶ PANTALLA COMPLETA', {
+      fontFamily: 'monospace',
+      fontSize: '10px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      padding: { x: 8, y: 4 }
+    })
+    .setOrigin(1, 0)
+    .setScrollFactor(0)
+    .setDepth(baseDepth + 2)
+    .setInteractive({ useHandCursor: true });
+
+    fsBtn.on('pointerover', () => fsBtn.setColor('#ffffff'));
+    fsBtn.on('pointerout', () => fsBtn.setColor('#38bdf8'));
+    fsBtn.on('pointerdown', () => {
+      this.soundManager?.playClick();
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
 
     // Botón Superior Derecho "CAMBIAR RUTA [M]"
     const btnX = width - 85;
@@ -619,14 +808,175 @@ export class WorldScene extends Phaser.Scene {
     const correct = this.combatCorrectAnswers;
 
     if (total === 0) {
-      this.accuracyDisplay.setText('🎯 PRECISIÓN EN COMBATE: --% (MÍNIMO 80%) [0/0]');
-      this.accuracyDisplay.setColor('#fbbf24');
+      this.accuracyDisplay.setText('🎯 PRECISIÓN EN COMBATE: 100% [0/0]');
+      this.accuracyDisplay.setColor('#38bdf8');
     } else {
       const acc = Math.round((correct / total) * 100);
-      const passed = acc >= 80;
-      this.accuracyDisplay.setText(`🎯 PRECISIÓN EN COMBATE: ${acc}% (MÍNIMO 80%) [${correct}/${total}] ${passed ? '✓ LISTO' : '✗ EXTENDIENDO'}`);
-      this.accuracyDisplay.setColor(passed ? '#34d399' : '#f87171');
+      this.accuracyDisplay.setText(`🎯 PRECISIÓN EN COMBATE: ${acc}% [${correct}/${total}] • SECTOR ACTIVO`);
+      this.accuracyDisplay.setColor('#38bdf8');
     }
+  }
+
+  createCriticalHealthVignette() {
+    const { width, height } = this.scale;
+    if (this.criticalVignette) {
+      this.criticalVignette.destroy();
+    }
+    this.criticalVignette = this.add.graphics().setScrollFactor(0).setDepth(9999).setVisible(false);
+
+    // Marco viñeta de alerta roja perimetral (alerta constante si vidas <= 2)
+    const borderThick = 24;
+    this.criticalVignette.fillStyle(0xdc2626, 0.45);
+    this.criticalVignette.fillRect(0, 0, width, borderThick);
+    this.criticalVignette.fillRect(0, height - borderThick, width, borderThick);
+    this.criticalVignette.fillRect(0, 0, borderThick, height);
+    this.criticalVignette.fillRect(width - borderThick, 0, borderThick, height);
+
+    // Borde de neón escarlata brillante
+    this.criticalVignette.lineStyle(4, 0xef4444, 0.95);
+    this.criticalVignette.strokeRect(2, 2, width - 4, height - 4);
+
+    // Segundo borde interno de advertencia
+    this.criticalVignette.lineStyle(1.5, 0xfca5a5, 0.7);
+    this.criticalVignette.strokeRect(borderThick, borderThick, width - (borderThick * 2), height - (borderThick * 2));
+
+    this.tweens.add({
+      targets: this.criticalVignette,
+      alpha: 0.25,
+      duration: 420,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  updateCriticalHealthFX() {
+    if (!this.criticalVignette) return;
+    if (this.lives <= 2 && !this.isGameOver) {
+      this.criticalVignette.setVisible(true);
+    } else {
+      this.criticalVignette.setVisible(false);
+    }
+  }
+
+  takeDamage(amount = 1, source = null) {
+    this.damagePlayer(amount, source);
+  }
+
+  damagePlayer(amount = 1, source = null) {
+    if (this.isInvulnerable || this.isGameOver || this.isVictory) return;
+    this.isInvulnerable = true;
+
+    // Reducir estrictamente de 1 en 1 vida
+    this.lives = Math.max(0, this.lives - amount);
+    this.updateLivesHUD();
+    this.updateCriticalHealthFX();
+
+    if (this.soundManager) {
+      this.soundManager.playHit();
+    }
+
+    // Vibración de cámara y flash de daño
+    this.cameras.main.shake(320, 0.022);
+    this.cameras.main.flash(260, 239, 68, 68);
+
+    // Separación física / Knockback para despegar al jugador del atacante
+    if (this.player && this.player.body && source) {
+      const knockDir = (this.player.x < source.x) ? -1 : 1;
+      this.player.setVelocityX(knockDir * 240);
+      this.player.setVelocityY(-240);
+    }
+
+    // Sistema de invulnerabilidad temporal (i-frames: 1800 ms) con parpadeo de sprite
+    if (this.player && this.player.active) {
+      this.player.setTint(0xef4444);
+      if (this.iframeTween) {
+        this.iframeTween.stop();
+      }
+      this.iframeTween = this.tweens.add({
+        targets: this.player,
+        alpha: 0.25,
+        duration: 110,
+        yoyo: true,
+        repeat: 7, // 8 oscilaciones de 220ms = ~1760ms
+        onComplete: () => {
+          if (this.player && this.player.active) {
+            this.player.setAlpha(1);
+            this.player.clearTint();
+            this.player.updatePalette?.();
+          }
+        }
+      });
+    }
+
+    // Cooldown de 1.8 segundos para evitar pérdida múltiple de vidas
+    this.time.delayedCall(1800, () => {
+      this.isInvulnerable = false;
+      if (this.player && this.player.active) {
+        this.player.setAlpha(1);
+        this.player.clearTint();
+        this.player.updatePalette?.();
+      }
+    });
+
+    if (this.lives <= 0) {
+      this.time.delayedCall(450, () => {
+        this.triggerGameOver();
+      });
+    }
+  }
+
+  healPlayer(amount = 1) {
+    if (this.lives < this.maxLives) {
+      this.lives = Math.min(this.maxLives, this.lives + amount);
+      this.updateLivesHUD();
+      this.updateCriticalHealthFX();
+      this.cameras.main.flash(250, 16, 185, 129);
+      if (this.soundManager) this.soundManager.playHeal();
+    }
+  }
+
+  handleFallIntoAbyss() {
+    if (this.isRespawning || this.isGameOver) return;
+    this.isRespawning = true;
+
+    this.takeDamage(1);
+
+    const safeX = Math.max(120, this.lastSafeX || 120);
+    const safeY = 360;
+    if (this.player) {
+      this.player.setPosition(safeX, safeY);
+      this.player.setVelocity(0, 0);
+    }
+
+    this.time.delayedCall(400, () => {
+      this.isRespawning = false;
+    });
+  }
+
+  startBossCombatDuel(boss) {
+    if (this.battleArena && !this.battleArena.isOpen) {
+      this.battleArena.startBattle({
+        matbot: boss,
+        onCombatResult: (isCorrect) => {
+          if (isCorrect) {
+            boss.onBossChallengeSuccess();
+          } else {
+            this.takeDamage(1);
+          }
+        }
+      });
+    }
+  }
+
+  showTrophyVictoryModal(competencyId) {
+    if (!this.trophyModal) {
+      this.trophyModal = new TrophyModal(this);
+    }
+    this.soundManager?.playCorrect();
+    this.trophyModal.show(competencyId, () => {
+      this.goToCompetencySelector();
+    });
   }
 
   updateHUDLevel() {
@@ -678,7 +1028,6 @@ export class WorldScene extends Phaser.Scene {
               this.refreshRemainingEnemyChallenges();
             }
           } else {
-            this.damagePlayer(1);
             if (bot && typeof bot.setCooldown === 'function') {
               bot.setCooldown(3500);
             }
@@ -895,35 +1244,14 @@ export class WorldScene extends Phaser.Scene {
 
   /**
    * Maneja la llegada a la Meta de Victoria del sector.
-   * Exige estrictamente un mínimo acumulado del 80% de precisión en combates.
-   * Si la precisión es inferior, extiende el mapa de forma infinita.
+   * Sin requisito restrictivo del 80%: El avance depende de superar los desafíos y llegar a la meta.
    */
   handleVictoryGoal() {
     if (this.isVictory || this.isGameOver) return;
 
     const total = this.combatTotalQuestions;
     const correct = this.combatCorrectAnswers;
-    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-
-    // Regla estricta: Mínimo 80% de precisión y al menos 2 combates enfrentados
-    if (total < 2 || accuracy < 80) {
-      this.cameras.main.shake(250, 0.008);
-      if (this.soundManager) {
-        this.soundManager.playError();
-      }
-      const reason = total < 2
-        ? `⚠️ COMBATES INSUFICIENTES (${total}/2 mínimos). ¡EL SECTOR SE EXTIENDE! ➔`
-        : `⚠️ PRECISIÓN ${accuracy}% INSUFICIENTE (< 80%). ¡EL SECTOR SE EXTIENDE! ➔`;
-
-      this.showFloatingNotice(
-        this.player.x,
-        this.player.y - 75,
-        reason,
-        '#f43f5e'
-      );
-      this.extendChunk();
-      return;
-    }
+    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 100;
 
     this.isVictory = true;
     if (this.soundManager) {
@@ -971,7 +1299,7 @@ export class WorldScene extends Phaser.Scene {
     this.add.text(
       width / 2,
       boxY + 76,
-      `¡Has completado con maestría el Sector ${this.sectorNumber} en ${this.meta.name.toUpperCase()}!\nSuperaste el requisito indispensable de precisión (>80%) con dominio táctico.`,
+      `¡Has completado con maestría el Sector ${this.sectorNumber} en ${this.meta.name.toUpperCase()}!\nSuperaste los desafíos del sector con dominio táctico y cognitivo.`,
       {
         fontFamily: 'Segoe UI',
         fontSize: '12px',
@@ -1133,15 +1461,48 @@ export class WorldScene extends Phaser.Scene {
 
     if (this.player) {
       this.player.update(time, delta);
+
+      // Verificación de checkpoints y caída a abismos letales (vacíos estilo Mario 3)
+      if (this.player.body) {
+        if (this.player.body.touching.down && this.player.y < 440) {
+          this.lastSafeX = this.player.x;
+        }
+        if (this.player.y > this.worldHeight + 25) {
+          this.handleFallIntoAbyss();
+        }
+      }
     }
 
-    // Actualizar Inteligencia Artificial de los MatBots
+    // Vibración sutil de estado crítico cuando quedan 2 vidas o menos
+    if (this.lives <= 2 && !this.isGameOver) {
+      this.heartbeatTimer = (this.heartbeatTimer || 0) + delta;
+      if (this.heartbeatTimer > 2500) {
+        this.heartbeatTimer = 0;
+        this.cameras.main.shake(160, 0.005);
+      }
+    }
+
+    // Actualizar Inteligencia Artificial de los MatBots y Synapse Crawlers
     if (this.matbots && this.matbots.length > 0) {
       this.matbots.forEach(bot => {
         if (bot && bot.active) {
           bot.updateAI(time, delta, this.player);
         }
       });
+    }
+
+    // Actualizar Enemigos Voladores (OwlBot y AjoloteBot)
+    if (this.flyingBots && this.flyingBots.length > 0) {
+      this.flyingBots.forEach(fbot => {
+        if (fbot && fbot.active) {
+          fbot.update(time, delta);
+        }
+      });
+    }
+
+    // Actualizar Jefe de Módulo (BosMat)
+    if (this.boss && this.boss.active) {
+      this.boss.update(time, delta);
     }
 
     if (this.virtualControls) {

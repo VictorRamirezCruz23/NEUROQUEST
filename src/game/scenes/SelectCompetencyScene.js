@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COMPETENCY_IDS, COMPETENCY_METADATA, sessionState } from '../../core/sessionState.js';
+import { SoundManager } from '../audio/SoundManager.js';
 
 /**
  * Escena del Selector de Competencias de NEUROQUEST.
@@ -18,6 +19,10 @@ export class SelectCompetencyScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.selectedCompetencyId = sessionState.getActiveCompetency();
     this.isTransitioning = false;
+
+    // Gestor de sonido y música de menú
+    this.soundManager = new SoundManager(this);
+    this.soundManager.playMenuMusic();
 
     // Fondo cibernético
     this.createBackground(width, height);
@@ -87,7 +92,30 @@ export class SelectCompetencyScene extends Phaser.Scene {
 
     dashBtn.on('pointerover', () => dashBtn.setColor('#ffffff'));
     dashBtn.on('pointerout', () => dashBtn.setColor('#38bdf8'));
-    dashBtn.on('pointerdown', () => this.openDashboard());
+    dashBtn.on('pointerdown', () => {
+      this.soundManager?.playClick();
+      this.openDashboard();
+    });
+
+    // Botón Pantalla Completa (Fullscreen)
+    const fsBtn = this.add.text(width - 150, 24, '⛶ PANTALLA COMPLETA', {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#38bdf8',
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      padding: { x: 10, y: 6 }
+    })
+    .setOrigin(1, 0)
+    .setInteractive({ useHandCursor: true });
+
+    fsBtn.on('pointerdown', () => {
+      this.soundManager?.playClick();
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
   }
 
   createCompetencyCards(width, height) {
@@ -209,6 +237,15 @@ export class SelectCompetencyScene extends Phaser.Scene {
         enterBtnText
       ]);
 
+      // Distintivo de Trofeo Conmemorativo si el mundo fue completado
+      if (sessionState.hasTrophy(meta.id)) {
+        const trophyKey = `trophy_${meta.id.split('_')[0]}`;
+        const finalTrophyKey = this.textures.exists(trophyKey) ? trophyKey : 'trophy_logic';
+        const trophyBadge = this.add.image(cardWidth / 2 - 24, -cardHeight / 2 + 26, finalTrophyKey)
+          .setDisplaySize(28, 28);
+        container.add(trophyBadge);
+      }
+
       // Zona interactiva plana sobre la tarjeta para garantizar clic instantáneo
       const hitZone = this.add.zone(x, cardY, cardWidth, cardHeight)
         .setInteractive({ useHandCursor: true });
@@ -237,6 +274,7 @@ export class SelectCompetencyScene extends Phaser.Scene {
 
       // Al hacer clic en la tarjeta: selecciona e ingresa directamente al mundo
       hitZone.on('pointerdown', () => {
+        this.soundManager?.playClick();
         this.enterSelectedWorld(meta.id);
       });
 

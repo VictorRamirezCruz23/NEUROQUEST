@@ -52,20 +52,15 @@ export class BattleArenaModal {
     this.keyHandler = (event) => {
       if (!this.isOpen) return;
 
-      if (this.isResolving) {
+      // Se retira la selección de preguntas por teclado (Digit1-4, KeyA-D).
+      // Solo se conserva Enter/Espacio para avanzar tras completar exitosamente la resolución.
+      if (this.isResolving && this.isSuccess) {
         if (event.code === 'Enter' || event.code === 'Space') {
           if (typeof this.finishResolution === 'function') {
             this.finishResolution();
           }
         }
-        return;
       }
-
-      const code = event.code;
-      if (code === 'Digit1' || code === 'KeyA') this.handleOptionSelect(0);
-      else if (code === 'Digit2' || code === 'KeyB') this.handleOptionSelect(1);
-      else if (code === 'Digit3' || code === 'KeyC') this.handleOptionSelect(2);
-      else if (code === 'Digit4' || code === 'KeyD') this.handleOptionSelect(3);
     };
 
     this.scene.input.keyboard.on('keydown', this.keyHandler);
@@ -185,7 +180,11 @@ export class BattleArenaModal {
           }
 
           if (!this.isOpen) return;
-          this.renderArena();
+          try {
+            this.renderArena();
+          } catch (renderErr) {
+            console.error('[BattleArenaModal] Error rendering arena:', renderErr);
+          }
         }
       });
       this.activeTweens.push(zoomTween);
@@ -240,21 +239,51 @@ export class BattleArenaModal {
       .setDepth(baseDepth + 2);
     this.track(botPlatform);
 
-    // Sprite de combate de MatBot (textura y animaciones independientes)
-    const botTextureKey = this.scene.textures.exists('matbot_texture') ? 'matbot_texture' : 'matbot';
-    const botSprite = this.scene.add.sprite(botCenterX, botCenterY, botTextureKey, 0)
-      .setScale(0.85)
+    // Sprite de combate dinámico del enemigo (soporta MatBot, BrainBot, ParasiteBot, BosMat, etc.)
+    const activeBotKey = this.currentBot?.texture?.key || (this.scene.textures.exists('matbot_texture') ? 'matbot_texture' : 'matbot');
+    const isBotSheet = activeBotKey.includes('sheet') || activeBotKey === 'matbot' || activeBotKey === 'matbot_texture';
+    const isFlying = activeBotKey === 'owlbot_texture' || activeBotKey === 'ajolotebot_texture';
+    let botScale = 0.82;
+    const botSprite = this.scene.add.sprite(
+      botCenterX,
+      isFlying ? botCenterY : (botCenterY + 45),
+      activeBotKey,
+      0
+    )
+      .setOrigin(0.5, isFlying ? 0.5 : 0.89)
       .setScrollFactor(0)
       .setDepth(baseDepth + 3);
-    if (this.scene.anims.exists('matbot_idle')) {
-      botSprite.play('matbot_idle');
-    } else if (this.scene.anims.exists('matbot_walk')) {
-      botSprite.play('matbot_walk');
+
+    if (activeBotKey === 'parasitebot_texture') {
+      botScale = 0.85;
+      if (this.scene.anims.exists('parasitebot_crawl')) botSprite.play('parasitebot_crawl');
+    } else if (activeBotKey === 'owlbot_texture') {
+      botScale = 0.82;
+      if (this.scene.anims.exists('owlbot_fly')) botSprite.play('owlbot_fly');
+    } else if (activeBotKey === 'ajolotebot_texture') {
+      botScale = 0.82;
+      if (this.scene.anims.exists('ajolotebot_fly')) botSprite.play('ajolotebot_fly');
+    } else if (activeBotKey === 'bosmat_texture') {
+      botScale = 0.95;
+      if (this.scene.anims.exists('bosmat_idle')) botSprite.play('bosmat_idle');
+    } else if (activeBotKey === 'caatbot_texture' || activeBotKey === 'warbot_texture' || activeBotKey === 'brainbot_texture' || activeBotKey === 'neurobot_texture' || activeBotKey === 'questbot_texture') {
+      botScale = 0.82;
+      const animKey = `${this.currentBot?.botType || ''}_walk`;
+      if (this.scene.anims.exists(animKey)) {
+        botSprite.play(animKey);
+      }
+    } else if (isBotSheet) {
+      if (this.scene.anims.exists('matbot_idle')) {
+        botSprite.play('matbot_idle');
+      } else if (this.scene.anims.exists('matbot_walk')) {
+        botSprite.play('matbot_walk');
+      }
     }
+    botSprite.setScale(botScale);
     this.track(botSprite);
     this.arenaBotSprite = botSprite;
 
-    // Caja de telemetría de MatBot
+    // Caja de telemetría del enemigo
     const botInfoX = width - 365;
     const botInfoY = 38;
     const botInfoBox = this.scene.add.graphics().setScrollFactor(0).setDepth(baseDepth + 2);
@@ -264,9 +293,12 @@ export class BattleArenaModal {
     botInfoBox.strokeRoundedRect(botInfoX, botInfoY, 210, 58, 6);
     this.track(botInfoBox);
 
-    const botName = this.scene.add.text(botInfoX + 10, botInfoY + 8, '👾 MATBOT • GUARDIÁN LÓGICO', {
+    const displayName = (this.currentBot?.botName || this.currentBot?.name || 'MATBOT').toUpperCase();
+    const botTitle = (this.currentBot?.botTitle || 'GUARDIÁN COGNITIVO').toUpperCase();
+
+    const botName = this.scene.add.text(botInfoX + 10, botInfoY + 8, `👾 ${displayName}`, {
       fontFamily: 'monospace',
-      fontSize: '10px',
+      fontSize: '9.5px',
       color: '#f87171',
       fontStyle: 'bold'
     }).setScrollFactor(0).setDepth(baseDepth + 3);
@@ -336,6 +368,7 @@ export class BattleArenaModal {
     this.track(livesLabel);
 
     // Cabezas del jugador que reflejan las vidas actuales
+    this.playerHeads = [];
     const maxLives = 5;
     const currentLives = (this.scene && typeof this.scene.lives === 'number') ? this.scene.lives : 5;
     for (let i = 0; i < maxLives; i++) {
@@ -351,6 +384,7 @@ export class BattleArenaModal {
         head.setAlpha(0.35);
       }
       this.track(head);
+      this.playerHeads.push(head);
     }
 
     // =========================================================================
@@ -444,7 +478,7 @@ export class BattleArenaModal {
       drawBtn(false);
       this.track(btnGfx);
 
-      const prefix = ['[1]', '[2]', '[3]', '[4]'][idx];
+      const prefix = ['A)', 'B)', 'C)', 'D)'][idx];
       const optLabel = this.scene.add.text(
         ox + 10,
         oy + optH / 2,
@@ -470,13 +504,12 @@ export class BattleArenaModal {
       hitZone.on('pointerout', () => drawBtn(false));
       hitZone.on('pointerdown', () => this.handleOptionSelect(idx));
 
-      this.optionButtons.push({ btnGfx, optLabel, hitZone, drawBtn, ox, oy, optW, optH });
+      this.optionButtons.push({ btnGfx, optLabel, hitZone, drawBtn, ox, oy, optW, optH, rawText: opt });
     });
   }
 
   handleOptionSelect(index) {
     if (this.isResolving || !this.currentChallenge || !this.isOpen) return;
-    this.isResolving = true;
 
     try {
       const timeSeconds = this.challengeStartTime
@@ -489,20 +522,108 @@ export class BattleArenaModal {
       const isCorrect = evalResult.isCorrect;
       const newLevel = evalResult.currentLevel;
       const isLevelUp = isCorrect && (newLevel > prevLevel);
-      const resultColor = isCorrect ? '#34d399' : '#ef4444';
       const correctIdx = typeof this.currentChallenge.correctIndex === 'number'
         ? this.currentChallenge.correctIndex
         : 0;
 
-      let resultMsg = isCorrect
-        ? '⚡ ¡IMPACTO CRÍTICO! Respuesta acertada. MatBot neutralizado.'
-        : '⚠️ ¡CÁLCULO ERRÓNEO! MatBot dispara láser. Blindaje dañado (-1 vida).';
+      // =======================================================================
+      // CASO 1: RESPUESTA INCORRECTA (Reintento fluido sin bloqueo ni bug)
+      // =======================================================================
+      if (!isCorrect) {
+        // Reducir estrictamente 1 vida del jugador por intento fallido
+        if (typeof this.scene.lives === 'number') {
+          this.scene.lives = Math.max(0, this.scene.lives - 1);
+          if (typeof this.scene.updateLivesHUD === 'function') {
+            this.scene.updateLivesHUD();
+          }
+          if (typeof this.scene.updateCriticalHealthFX === 'function') {
+            this.scene.updateCriticalHealthFX();
+          }
+        }
 
-      if (isCorrect && evalResult.adaptiveResult && evalResult.adaptiveResult.action === 'INCREASE') {
+        // Actualizar cabezas de vida en el modal de combate
+        if (this.playerHeads) {
+          const currentLives = typeof this.scene.lives === 'number' ? this.scene.lives : 5;
+          this.playerHeads.forEach((head, i) => {
+            if (head && head.active) {
+              if (i >= currentLives) {
+                head.setTint(0x334155);
+                head.setAlpha(0.35);
+              }
+            }
+          });
+        }
+
+        // Efectos de sonido y vibración de cámara
+        if (this.scene.soundManager) {
+          this.scene.soundManager.playError();
+          this.scene.time.delayedCall(90, () => {
+            this.scene.soundManager?.playHit();
+          });
+        }
+        this.scene.cameras.main.shake(250, 0.015);
+
+        // Destello de daño en sprite del jugador
+        if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
+          this.arenaPlayerSprite.setTint(0xef4444);
+          this.scene.time.delayedCall(160, () => {
+            if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
+              this.arenaPlayerSprite.clearTint();
+            }
+          });
+        }
+
+        // Desactivar y marcar en rojo ÚNICAMENTE la opción incorrecta seleccionada
+        const chosenBtn = this.optionButtons[index];
+        if (chosenBtn) {
+          if (chosenBtn.hitZone && chosenBtn.hitZone.disableInteractive) {
+            chosenBtn.hitZone.disableInteractive();
+          }
+          if (chosenBtn.btnGfx && chosenBtn.btnGfx.active) {
+            chosenBtn.btnGfx.clear();
+            chosenBtn.btnGfx.fillStyle(0x7f1d1d, 0.95);
+            chosenBtn.btnGfx.fillRoundedRect(chosenBtn.ox, chosenBtn.oy, chosenBtn.optW, chosenBtn.optH, 5);
+            chosenBtn.btnGfx.lineStyle(2, 0xef4444, 1);
+            chosenBtn.btnGfx.strokeRoundedRect(chosenBtn.ox, chosenBtn.oy, chosenBtn.optW, chosenBtn.optH, 5);
+          }
+          if (chosenBtn.optLabel && chosenBtn.optLabel.active) {
+            chosenBtn.optLabel.setColor('#fca5a5');
+            chosenBtn.optLabel.setText(`[❌] ${chosenBtn.rawText || ''}`);
+          }
+        }
+
+        // Si el jugador se quedó sin vidas, terminar combate para pantalla de Game Over
+        if (typeof this.scene.lives === 'number' && this.scene.lives <= 0) {
+          this.isResolving = true;
+          this.close();
+          if (typeof this.onCombatResult === 'function') {
+            this.onCombatResult(false, this.currentChallenge, this.currentBot, {});
+          }
+          return;
+        }
+
+        // Si aún tiene vidas, permitir reintentar con otra opción inmediatamente
+        if (this.promptText && this.promptText.active) {
+          this.promptText.setText('⚠️ ¡CÁLCULO ERRÓNEO! Blindaje dañado (-1 vida).\nIntenta responder de nuevo seleccionando otra opción:');
+          this.promptText.setColor('#f87171');
+        }
+
+        this.isResolving = false;
+        return;
+      }
+
+      // =======================================================================
+      // CASO 2: RESPUESTA CORRECTA (Victoria del duelo)
+      // =======================================================================
+      this.isResolving = true;
+      this.isSuccess = true;
+
+      let resultMsg = '⚡ ¡IMPACTO CRÍTICO! Respuesta acertada. Enemigo neutralizado.';
+      if (evalResult.adaptiveResult && evalResult.adaptiveResult.action === 'INCREASE') {
         resultMsg += `\n🚀 ¡Dificultad elevada a Nivel ${evalResult.currentLevel}! (${evalResult.adaptiveResult.reason})`;
       }
 
-      // Desactivar interacción y pintar retroalimentación visual inmediata en las opciones
+      // Marcar opción acertada en verde y desactivar botones
       this.optionButtons.forEach((b, idx) => {
         if (!b) return;
         if (b.hitZone && b.hitZone.disableInteractive) {
@@ -511,187 +632,76 @@ export class BattleArenaModal {
         if (b.btnGfx && b.btnGfx.active) {
           b.btnGfx.clear();
           if (idx === index) {
-            // Opción seleccionada por el usuario
-            b.btnGfx.fillStyle(isCorrect ? 0x065f46 : 0x7f1d1d, 0.95);
+            b.btnGfx.fillStyle(0x065f46, 0.95);
             b.btnGfx.fillRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
-            b.btnGfx.lineStyle(2, isCorrect ? 0x10b981 : 0xef4444, 1);
-            b.btnGfx.strokeRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
-          } else if (!isCorrect && idx === correctIdx) {
-            // Opción correcta resaltada pedagógicamente
-            b.btnGfx.fillStyle(0x064e3b, 0.85);
-            b.btnGfx.fillRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
-            b.btnGfx.lineStyle(2, 0x34d399, 1);
+            b.btnGfx.lineStyle(2, 0x10b981, 1);
             b.btnGfx.strokeRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
           } else {
-            b.btnGfx.fillStyle(0x0a0f1d, 0.6);
+            b.btnGfx.fillStyle(0x0a0f1d, 0.4);
             b.btnGfx.fillRoundedRect(b.ox, b.oy, b.optW, b.optH, 5);
           }
+        }
+        if (idx === index && b.optLabel && b.optLabel.active) {
+          b.optLabel.setColor('#34d399');
+          b.optLabel.setText(`[✓] ${b.rawText || ''}`);
         }
       });
 
-      // Actualización protegida del texto con ajuste dinámico
-      if (this.promptText && this.promptText.active && typeof this.promptText.setText === 'function') {
-        try {
-          const expl = this.currentChallenge.explanation ? `\n💡 ${this.currentChallenge.explanation}` : '';
-          const tapPrompt = '\n\n[ Clic o pulsa ENTER / ESPACIO para continuar ]';
-          this.promptText.setText(`${resultMsg}${expl}${tapPrompt}`);
-          this.promptText.setColor(resultColor);
-          if (this.promptText.height > 98) {
-            this.promptText.setFontSize(10.5);
-            this.promptText.setLineSpacing(1);
-          }
-        } catch (err) {
-          console.warn('[BattleArenaModal] Safe catch al actualizar promptText:', err);
+      if (this.promptText && this.promptText.active) {
+        const expl = this.currentChallenge.explanation ? `\n💡 ${this.currentChallenge.explanation}` : '';
+        this.promptText.setText(`${resultMsg}${expl}`);
+        this.promptText.setColor('#34d399');
+      }
+
+      // Audio de acierto
+      if (this.scene.soundManager) {
+        this.scene.soundManager.playCorrect();
+      }
+
+      // Animación de ataque del Cadete
+      if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
+        const atkKey = this.scene.anims.exists('player_attack') ? 'player_attack' : 'player_punch';
+        if (this.scene.anims.exists(atkKey)) {
+          this.arenaPlayerSprite.play(atkKey, true);
         }
       }
 
-      if (isCorrect) {
-        // Audio de acierto
-        if (this.scene.soundManager) {
-          this.scene.soundManager.playCorrect();
-        }
-
-        // Animación de golpe del Cadete (Player)
-        if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
-          const atkKey = this.scene.anims.exists('player_attack') ? 'player_attack' : 'player_punch';
-          if (this.scene.anims.exists(atkKey)) {
-            this.arenaPlayerSprite.play(atkKey, true);
-            this.arenaPlayerSprite.once(`animationcomplete-${atkKey}`, () => {
-              if (this.arenaPlayerSprite && this.arenaPlayerSprite.active && this.scene.anims.exists('player_idle')) {
-                this.arenaPlayerSprite.play('player_idle', true);
-              }
-            });
-          }
-        }
-
-        // Desencadenar animación activa en la entidad del jugador en el mundo
-        if (this.player && typeof this.player.performAttack === 'function') {
-          this.player.performAttack();
-        }
-
-        // Animación en barra de vida del MatBot
-        if (this.botHpBar && this.botHpBar.active) {
-          const hpTween = this.scene.tweens.add({
-            targets: this.botHpBar,
-            width: 0,
-            duration: 300,
-            ease: 'Power2'
-          });
-          this.activeTweens.push(hpTween);
-        }
-
-        // Animación de impacto en MatBot (usando setTint seguro sin tweening de tint directo)
-        if (this.arenaBotSprite && this.arenaBotSprite.active) {
-          this.arenaBotSprite.setTint(0xef4444);
-          const botTween = this.scene.tweens.add({
-            targets: this.arenaBotSprite,
-            alpha: 0.2,
-            scaleX: 0.85,
-            scaleY: 0.85,
-            duration: 350,
-            yoyo: true,
-            repeat: 1,
-            onComplete: () => {
-              if (this.arenaBotSprite && this.arenaBotSprite.active) {
-                this.arenaBotSprite.clearTint();
-                this.arenaBotSprite.setAlpha(1.0);
-              }
-            }
-          });
-          this.activeTweens.push(botTween);
-        }
-
-        this.scene.cameras.main.flash(180, 56, 189, 248);
-      } else {
-        // Audio de error y láser de contraataque
-        if (this.scene.soundManager) {
-          this.scene.soundManager.playError();
-          this.scene.time.delayedCall(120, () => {
-            this.scene.soundManager?.playHit();
-          });
-        }
-
-        // Animación de ataque del MatBot
-        if (this.arenaBotSprite && this.arenaBotSprite.active) {
-          if (this.scene.anims.exists('matbot_attack')) {
-            this.arenaBotSprite.play('matbot_attack', true);
-            this.arenaBotSprite.once('animationcomplete-matbot_attack', () => {
-              if (this.arenaBotSprite && this.arenaBotSprite.active && this.scene.anims.exists('matbot_walk')) {
-                this.arenaBotSprite.play('matbot_walk', true);
-              }
-            });
-          }
-        }
-
-        // Animación de impacto en Cadete
-        if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
-          this.arenaPlayerSprite.setTint(0xef4444);
-          const playerTween = this.scene.tweens.add({
-            targets: this.arenaPlayerSprite,
-            alpha: 0.3,
-            duration: 90,
-            yoyo: true,
-            repeat: 3,
-            onComplete: () => {
-              if (this.arenaPlayerSprite && this.arenaPlayerSprite.active) {
-                this.arenaPlayerSprite.clearTint();
-                this.arenaPlayerSprite.setAlpha(1.0);
-                if (this.scene.anims.exists('player_idle')) {
-                  this.arenaPlayerSprite.play('player_idle', true);
-                }
-              }
-            }
-          });
-          this.activeTweens.push(playerTween);
-        }
-
-        this.scene.cameras.main.flash(200, 239, 68, 68);
+      // Vaciar barra de vida del bot
+      if (this.botHpBar && this.botHpBar.active) {
+        this.scene.tweens.add({
+          targets: this.botHpBar,
+          width: 0,
+          duration: 300,
+          ease: 'Power2'
+        });
       }
 
-      // Controlador unificado para finalizar la resolución
-      let resolved = false;
-      const challengeRef = this.currentChallenge;
-      const botRef = this.currentBot;
-      const callback = this.onCombatResult;
+      // Desvanecimiento del bot
+      if (this.arenaBotSprite && this.arenaBotSprite.active) {
+        this.arenaBotSprite.setTint(0xef4444);
+        this.scene.tweens.add({
+          targets: this.arenaBotSprite,
+          alpha: 0.1,
+          scaleX: 0.7,
+          scaleY: 0.7,
+          duration: 400
+        });
+      }
 
-      this.finishResolution = () => {
-        if (resolved) return;
-        resolved = true;
-        this.finishResolution = null;
-
+      // Finalizar tras breve retraso satisfactorio
+      const endTimer = this.scene.time.delayedCall(850, () => {
         this.close();
-
         if (this.scene && typeof this.scene.updateHUDLevel === 'function') {
           this.scene.updateHUDLevel();
         }
-
-        if (typeof callback === 'function') {
-          callback(isCorrect, challengeRef, botRef, { isLevelUp, newLevel, prevLevel });
-        }
-      };
-
-      // Si el usuario hace clic en cualquier parte durante la resolución, avanzar de inmediato
-      const quickAdvanceHandler = () => {
-        if (this.finishResolution) {
-          this.finishResolution();
-        }
-      };
-      this.scene.input.once('pointerdown', quickAdvanceHandler);
-
-      // Temporizador automático seguro de resolución (1050ms)
-      const endTimer = this.scene.time.delayedCall(1050, () => {
-        if (this.scene && this.scene.input) {
-          this.scene.input.off('pointerdown', quickAdvanceHandler);
-        }
-        if (this.finishResolution) {
-          this.finishResolution();
+        if (typeof this.onCombatResult === 'function') {
+          this.onCombatResult(true, this.currentChallenge, this.currentBot, { isLevelUp, newLevel, prevLevel });
         }
       });
       this.pendingTimers.push(endTimer);
 
     } catch (err) {
       console.error('[BattleArenaModal] Error inesperado en resolución de combate:', err);
-      // Garantía de contingencia: nunca dejar congelado el juego ni al jugador
       this.close();
       if (typeof this.onCombatResult === 'function') {
         this.onCombatResult(false, this.currentChallenge, this.currentBot, {});
